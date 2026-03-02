@@ -1,0 +1,29 @@
+{
+    "name": "采购系统",
+    "appid": "",
+    "description": "B2B 进销存采购管理微信小程序",
+    "versionName": "1.0.0",
+    "versionCode": "100",
+    "transformPx": false,
+    /* 小程序特有相关 */
+    "mp-weixin": {
+        "appid": "",
+        "setting": {
+            "urlCheck": false,
+            "es6": true,
+            "minified": true
+        },
+        "usingComponents": true,
+        "permission": {
+            "scope.bluetooth": {
+                "desc": "用于连接蓝牙打印机打印小票"
+            }
+        },
+        "requiredPrivateInfos": ["chooseAddress"],
+        "lazyCodeLoading": "requiredComponents"
+    },
+    "uniStatistics": {
+        "enable": false
+    },
+    "vueVersion": "3"
+}

@@ -1,0 +1,58 @@
+/**
+ * 采购系统 — 全局 SCSS 变量
+ * 所有页面和组件可直接使用（无需 import）
+ */
+
+/* ========== 品牌主色 ========== */
+$brand-color: #2979ff;
+$brand-color-light: #e8f0fe;
+$brand-color-dark: #1a5fc9;
+
+/* ========== 行为相关颜色 ========== */
+$uni-color-primary: #2979ff;
+$uni-color-success: #18bc37;
+$uni-color-warning: #f3a73f;
+$uni-color-error: #e43d33;
+
+/* ========== 文字颜色 ========== */
+$uni-text-color: #333333;
+$uni-text-color-inverse: #ffffff;
+$uni-text-color-grey: #999999;
+$uni-text-color-placeholder: #cccccc;
+$uni-text-color-disable: #c0c0c0;
+
+/* ========== 背景颜色 ========== */
+$uni-bg-color: #ffffff;
+$uni-bg-color-grey: #f5f6fa;
+$uni-bg-color-hover: #f1f1f1;
+$uni-bg-color-mask: rgba(0, 0, 0, 0.4);
+
+/* ========== 边框颜色 ========== */
+$uni-border-color: #eeeeee;
+
+/* ========== 文字尺寸 ========== */
+$uni-font-size-sm: 24rpx;
+$uni-font-size-base: 28rpx;
+$uni-font-size-lg: 32rpx;
+$uni-font-size-xl: 36rpx;
+$uni-font-size-title: 34rpx;
+
+/* ========== 间距 ========== */
+$uni-spacing-sm: 12rpx;
+$uni-spacing-base: 24rpx;
+$uni-spacing-lg: 32rpx;
+
+/* ========== 圆角 ========== */
+$uni-border-radius-sm: 8rpx;
+$uni-border-radius-base: 12rpx;
+$uni-border-radius-lg: 16rpx;
+$uni-border-radius-circle: 50%;
+
+/* ========== 业务相关颜色 ========== */
+$price-color: #ff4d4f;
+$profit-color: #18bc37;
+$stock-warning-color: #f3a73f;
+$order-pending-color: #2979ff;
+$order-confirmed-color: #18bc37;
+$order-shipped-color: #7c3aed;
+$order-completed-color: #999999;

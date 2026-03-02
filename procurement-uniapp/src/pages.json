@@ -1,0 +1,175 @@
+{
+  "pages": [
+    {
+      "path": "pages/inventory/index",
+      "style": { "navigationBarTitleText": "库存管理" }
+    },
+    {
+      "path": "pages/inventory/category",
+      "style": { "navigationBarTitleText": "分类管理" }
+    },
+    {
+      "path": "pages/inventory/product-form",
+      "style": { "navigationBarTitleText": "商品编辑" }
+    },
+    {
+      "path": "pages/inventory/batch-import",
+      "style": { "navigationBarTitleText": "批量导入" }
+    },
+    {
+      "path": "pages/inventory/statistics",
+      "style": { "navigationBarTitleText": "库存统计" }
+    },
+    {
+      "path": "pages/purchase/index",
+      "style": { "navigationBarTitleText": "采购订单" }
+    },
+    {
+      "path": "pages/purchase/detail",
+      "style": { "navigationBarTitleText": "采购订单详情" }
+    },
+    {
+      "path": "pages/purchase/quick-purchase",
+      "style": { "navigationBarTitleText": "快速采购" }
+    },
+    {
+      "path": "pages/purchase/supplier-list",
+      "style": { "navigationBarTitleText": "供应商列表" }
+    },
+    {
+      "path": "pages/purchase/supplier-detail",
+      "style": { "navigationBarTitleText": "供应商详情" }
+    },
+    {
+      "path": "pages/sales/index",
+      "style": { "navigationBarTitleText": "销售订单" }
+    },
+    {
+      "path": "pages/sales/detail",
+      "style": { "navigationBarTitleText": "销售订单详情" }
+    },
+    {
+      "path": "pages/sales/create-order",
+      "style": { "navigationBarTitleText": "开单" }
+    },
+    {
+      "path": "pages/sales/customer-list",
+      "style": { "navigationBarTitleText": "客户列表" }
+    },
+    {
+      "path": "pages/sales/customer-detail",
+      "style": { "navigationBarTitleText": "客户详情" }
+    },
+    {
+      "path": "pages/sales/add-customer",
+      "style": { "navigationBarTitleText": "添加客户" }
+    },
+    {
+      "path": "pages/statistics/index",
+      "style": { "navigationBarTitleText": "数据统计" }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": { "navigationBarTitleText": "我的" }
+    },
+    {
+      "path": "pages/profile/enterprise",
+      "style": { "navigationBarTitleText": "我的企业" }
+    },
+    {
+      "path": "pages/profile/create-enterprise",
+      "style": { "navigationBarTitleText": "创建企业" }
+    },
+    {
+      "path": "pages/profile/team",
+      "style": { "navigationBarTitleText": "团队管理" }
+    },
+    {
+      "path": "pages/profile/printer",
+      "style": { "navigationBarTitleText": "打印机管理" }
+    },
+    {
+      "path": "pages/profile/backup",
+      "style": { "navigationBarTitleText": "数据备份" }
+    },
+    {
+      "path": "pages/auth/login",
+      "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" }
+    },
+    {
+      "path": "pages/buyer/store",
+      "style": { "navigationBarTitleText": "商家库存" }
+    },
+    {
+      "path": "pages/buyer/product-detail",
+      "style": { "navigationBarTitleText": "商品详情" }
+    },
+    {
+      "path": "pages/buyer/cart",
+      "style": { "navigationBarTitleText": "采购清单" }
+    },
+    {
+      "path": "pages/buyer/checkout",
+      "style": { "navigationBarTitleText": "提交订单" }
+    },
+    {
+      "path": "pages/buyer/pay-success",
+      "style": { "navigationBarTitleText": "支付成功", "navigationStyle": "custom" }
+    },
+    {
+      "path": "pages/buyer/orders",
+      "style": { "navigationBarTitleText": "我的订单" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "采购系统",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#F5F6FA",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#2979FF",
+    "borderStyle": "white",
+    "backgroundColor": "#FFFFFF",
+    "list": [
+      {
+        "pagePath": "pages/inventory/index",
+        "text": "库存",
+        "iconPath": "static/tab/inventory.png",
+        "selectedIconPath": "static/tab/inventory-active.png"
+      },
+      {
+        "pagePath": "pages/purchase/index",
+        "text": "采购",
+        "iconPath": "static/tab/purchase.png",
+        "selectedIconPath": "static/tab/purchase-active.png"
+      },
+      {
+        "pagePath": "pages/sales/index",
+        "text": "销售",
+        "iconPath": "static/tab/sales.png",
+        "selectedIconPath": "static/tab/sales-active.png"
+      },
+      {
+        "pagePath": "pages/statistics/index",
+        "text": "统计",
+        "iconPath": "static/tab/statistics.png",
+        "selectedIconPath": "static/tab/statistics-active.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "static/tab/profile.png",
+        "selectedIconPath": "static/tab/profile-active.png"
+      }
+    ]
+  },
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^uni-(.*)": "@dcloudio/uni-ui/lib/uni-$1/uni-$1.vue"
+    }
+  }
+}

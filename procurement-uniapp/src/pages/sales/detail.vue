@@ -1,0 +1,163 @@
+<template>
+  <view class="page-sales-detail container">
+    <view class="card">
+      <view class="flex-between">
+        <text class="order-no">{{ order.orderNo }}</text>
+        <StatusTag :text="getStatusText(order.status)" :type="getStatusType(order.status)" />
+      </view>
+      <view class="divider" />
+      <view class="info-row">
+        <text class="info-label">客户</text>
+        <text class="info-value">{{ order.customerName || '-' }}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">支付状态</text>
+        <text class="info-value">{{ order.paymentStatus === 'PAID' ? '已支付' : '未支付' }}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">下单时间</text>
+        <text class="info-value">{{ order.createdAt }}</text>
+      </view>
+      <view class="info-row" v-if="order.remark">
+        <text class="info-label">备注</text>
+        <text class="info-value">{{ order.remark }}</text>
+      </view>
+    </view>
+
+    <!-- 商品明细 -->
+    <view class="card">
+      <text class="section-title">商品明细</text>
+      <view v-for="item in order.items" :key="item.productId" class="item-row">
+        <view class="item-info">
+          <text class="item-name">{{ item.productName }}</text>
+          <text class="item-spec">{{ item.spec }} / {{ item.unit }}</text>
+        </view>
+        <view class="item-right">
+          <text class="item-qty">x{{ item.quantity }}</text>
+          <text class="item-amount">¥{{ item.amount }}</text>
+        </view>
+      </view>
+      <view class="divider" />
+      <view class="total-row flex-between">
+        <text class="total-label">合计</text>
+        <text class="total-amount price-text">¥{{ order.totalAmount }}</text>
+      </view>
+      <view class="total-row flex-between" v-if="order.totalProfit != null">
+        <text class="total-label">利润</text>
+        <text class="profit-amount">¥{{ order.totalProfit }}</text>
+      </view>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="action-buttons" v-if="order.status">
+      <button v-if="order.status === 'PENDING'" class="btn-primary" @tap="handleAction('confirm')">确认订单</button>
+      <button v-if="order.status === 'CONFIRMED'" class="btn-primary" @tap="handleAction('ship')">标记发货</button>
+      <button v-if="order.status === 'SHIPPED'" class="btn-primary" @tap="handleAction('complete')">完成订单</button>
+      <button v-if="order.paymentStatus === 'UNPAID' && order.status !== 'CANCELLED'" class="btn-secondary" @tap="handleAction('pay')">标记已支付</button>
+      <button v-if="['PENDING','CONFIRMED'].includes(order.status)" class="btn-cancel" @tap="handleAction('cancel')">取消订单</button>
+    </view>
+  </view>
+</template>
+
+<script>
+import {
+  getSalesOrderDetail,
+  confirmSalesOrder,
+  shipSalesOrder,
+  completeSalesOrder,
+  cancelSalesOrder,
+  paySalesOrder
+} from '@/api/salesOrder'
+import { getSalesStatusText } from '@/utils/format'
+import StatusTag from '@/components/common/StatusTag.vue'
+
+export default {
+  components: { StatusTag },
+  data() {
+    return {
+      orderId: null,
+      order: { items: [] }
+    }
+  },
+  onLoad(query) {
+    this.orderId = Number(query.id)
+    this.loadDetail()
+  },
+  methods: {
+    async loadDetail() {
+      try {
+        this.order = await getSalesOrderDetail(this.orderId)
+      } catch (e) {}
+    },
+    getStatusText(status) { return getSalesStatusText(status) },
+    getStatusType(status) {
+      const map = { PENDING: 'warning', CONFIRMED: 'primary', SHIPPED: 'purple', COMPLETED: 'success', CANCELLED: 'danger' }
+      return map[status] || 'info'
+    },
+    async handleAction(action) {
+      const fns = {
+        confirm: confirmSalesOrder,
+        ship: shipSalesOrder,
+        complete: completeSalesOrder,
+        cancel: cancelSalesOrder,
+        pay: paySalesOrder
+      }
+      try {
+        await fns[action](this.orderId)
+        uni.showToast({ title: '操作成功', icon: 'success' })
+        this.loadDetail()
+      } catch (e) {}
+    }
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+.order-no { font-size: 30rpx; font-weight: 600; color: #333; }
+.section-title { font-size: 30rpx; font-weight: 600; margin-bottom: 20rpx; }
+.info-row { display: flex; justify-content: space-between; padding: 10rpx 0; }
+.info-label { font-size: 26rpx; color: #999; }
+.info-value { font-size: 26rpx; color: #333; }
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+.item-name { font-size: 28rpx; color: #333; }
+.item-spec { font-size: 24rpx; color: #999; }
+.item-right { text-align: right; }
+.item-qty { font-size: 26rpx; color: #666; display: block; }
+.item-amount { font-size: 26rpx; color: #333; font-weight: 500; }
+
+.total-row { padding: 8rpx 0; }
+.total-label { font-size: 28rpx; color: #333; font-weight: 600; }
+.total-amount { font-size: 36rpx; }
+.profit-amount { font-size: 32rpx; color: #18bc37; font-weight: 600; }
+
+.action-buttons { padding: 32rpx 0; }
+.btn-secondary {
+  margin-top: 16rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  text-align: center;
+  background: #e8f0fe;
+  border-radius: 12rpx;
+  color: #2979ff;
+  font-size: 28rpx;
+  border: none;
+}
+.btn-cancel {
+  margin-top: 16rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  text-align: center;
+  background: #f5f6fa;
+  border-radius: 12rpx;
+  color: #e43d33;
+  font-size: 28rpx;
+  border: none;
+}
+</style>
