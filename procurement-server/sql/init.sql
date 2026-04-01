@@ -28,6 +28,7 @@ CREATE TABLE `sys_user` (
   `nick_name`     VARCHAR(50)   DEFAULT NULL             COMMENT '昵称',
   `avatar_url`    VARCHAR(500)  DEFAULT NULL             COMMENT '头像 URL',
   `last_login_at` DATETIME      DEFAULT NULL             COMMENT '最后登录时间',
+  `notify_stock_warning` TINYINT(1) NOT NULL DEFAULT 0  COMMENT '库存预警通知开关：0=关闭，1=已开启',
   `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP           COMMENT '创建时间',
   `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `is_deleted`    TINYINT(1)    NOT NULL DEFAULT 0       COMMENT '逻辑删除（0=正常，1=已删除）',
@@ -50,6 +51,7 @@ CREATE TABLE `sys_enterprise` (
   `owner_id`      BIGINT        NOT NULL                 COMMENT '企业主用户ID',
   `invite_code`   VARCHAR(20)   DEFAULT NULL             COMMENT '团队邀请码',
   `logo_url`      VARCHAR(500)  DEFAULT NULL             COMMENT '企业 Logo URL',
+  `payment_qr_url` VARCHAR(500) DEFAULT NULL            COMMENT '收款二维码图片URL',
   `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP           COMMENT '创建时间',
   `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `is_deleted`    TINYINT(1)    NOT NULL DEFAULT 0       COMMENT '逻辑删除',
@@ -106,6 +108,7 @@ CREATE TABLE `pms_product` (
   `stock`          INT           NOT NULL DEFAULT 0       COMMENT '当前库存量',
   `stock_warning`  INT           NOT NULL DEFAULT 0       COMMENT '库存预警阈值（0=不预警）',
   `images`         JSON          DEFAULT NULL             COMMENT '商品图片 URL 数组 ["url1","url2"]',
+  `qrcode_image`   VARCHAR(500)  DEFAULT NULL             COMMENT '二维码图片 URL（扫码查看演示视频等）— 本地开发存 data/image，部署后迁移 COS',
   `status`         TINYINT(1)    NOT NULL DEFAULT 1       COMMENT '状态：1=上架，0=下架',
   `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP           COMMENT '创建时间',
   `updated_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -169,7 +172,28 @@ CREATE TABLE `crm_supplier` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='供应商表';
 
 -- ============================================================
--- 7. oms_sales_order — 销售订单主表
+-- 7. pms_product_supplier — 商品-供应商关联表
+-- 说明：记录某商品由哪些供应商供货，及对应供货价
+-- 同一商品可关联多个供应商（不同供货价），UNIQUE KEY 防止同一供应商重复绑定同一商品
+-- ============================================================
+CREATE TABLE `pms_product_supplier` (
+  `id`            BIGINT         NOT NULL AUTO_INCREMENT  COMMENT '主键',
+  `enterprise_id` BIGINT         NOT NULL                 COMMENT '所属企业',
+  `product_id`    BIGINT         NOT NULL                 COMMENT '商品ID',
+  `supplier_id`   BIGINT         NOT NULL                 COMMENT '供应商ID',
+  `supply_price`  DECIMAL(12,2)  NOT NULL DEFAULT 0.00    COMMENT '供货价',
+  `is_default`    TINYINT(1)     NOT NULL DEFAULT 0       COMMENT '是否默认供应商（预留，暂不开放）',
+  `created_at`    DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP           COMMENT '创建时间',
+  `updated_at`    DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted`    TINYINT(1)     NOT NULL DEFAULT 0       COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_product_supplier` (`product_id`, `supplier_id`),
+  KEY `idx_enterprise_supplier` (`enterprise_id`, `supplier_id`),
+  KEY `idx_enterprise_product`  (`enterprise_id`, `product_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品-供应商关联表';
+
+-- ============================================================
+-- 8. oms_sales_order — 销售订单主表
 -- 说明：记录商家的销售订单（来自买家线上下单或商家手动开单）
 -- 防御设计：customer 删除时不级联删除订单，保留历史记录
 -- ============================================================
@@ -183,6 +207,7 @@ CREATE TABLE `oms_sales_order` (
   `total_profit`    DECIMAL(12,2) NOT NULL DEFAULT 0.00    COMMENT '订单毛利润',
   `status`          VARCHAR(20)   NOT NULL DEFAULT 'PENDING' COMMENT '订单状态：PENDING/CONFIRMED/SHIPPED/COMPLETED/CANCELLED',
   `payment_status`  VARCHAR(20)   NOT NULL DEFAULT 'UNPAID'  COMMENT '支付状态：UNPAID/PAID',
+  `delivery_address` VARCHAR(300)  DEFAULT NULL             COMMENT '收货地址（下单时快照）',
   `remark`          VARCHAR(500)  DEFAULT NULL             COMMENT '订单备注',
   `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP           COMMENT '创建时间',
   `updated_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -386,3 +411,32 @@ CREATE TABLE `sys_import_log` (
     FOREIGN KEY (`user_id`) REFERENCES `sys_user`(`id`)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='批量导入记录表';
+
+-- ============================================================
+-- 迁移补丁：为已部署的数据库添加通知开关字段
+-- 新建数据库无需执行此语句（CREATE TABLE 已包含该列）
+-- ============================================================
+ALTER TABLE `sys_user`
+  ADD COLUMN `notify_stock_warning` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '库存预警通知开关：0=关闭，1=已开启'
+  AFTER `last_login_at`;
+
+-- ============================================================
+-- 迁移补丁：为已部署的数据库添加商品-供应商关联表
+-- 新建数据库无需执行此语句（CREATE TABLE 已包含该表）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `pms_product_supplier` (
+  `id`            BIGINT         NOT NULL AUTO_INCREMENT  COMMENT '主键',
+  `enterprise_id` BIGINT         NOT NULL                 COMMENT '所属企业',
+  `product_id`    BIGINT         NOT NULL                 COMMENT '商品ID',
+  `supplier_id`   BIGINT         NOT NULL                 COMMENT '供应商ID',
+  `supply_price`  DECIMAL(12,2)  NOT NULL DEFAULT 0.00    COMMENT '供货价',
+  `is_default`    TINYINT(1)     NOT NULL DEFAULT 0       COMMENT '是否默认供应商（预留，暂不开放）',
+  `created_at`    DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP           COMMENT '创建时间',
+  `updated_at`    DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted`    TINYINT(1)     NOT NULL DEFAULT 0       COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_product_supplier` (`product_id`, `supplier_id`),
+  KEY `idx_enterprise_supplier` (`enterprise_id`, `supplier_id`),
+  KEY `idx_enterprise_product`  (`enterprise_id`, `product_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品-供应商关联表';
+

@@ -1,0 +1,18 @@
+# MySQL 客户端凭据配置（安全传递密码，避免明文出现在 shell 历史）
+# 使用方式：
+#   1. 将此文件复制到服务器：cp scripts/my.cnf.example ~/.my.cnf
+#   2. 填入真实密码
+#   3. 重要：设置文件权限为仅当前用户可读
+#      chmod 600 ~/.my.cnf
+#
+# 设置后，mysql / mysqldump 命令会自动读取此文件中的凭据，无需在命令行中传递 -p 参数。
+
+[client]
+user=root
+password=YOUR_DB_PASSWORD_HERE
+host=127.0.0.1
+port=3306
+
+[mysqldump]
+user=root
+password=YOUR_DB_PASSWORD_HERE

@@ -2,7 +2,40 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.procurement.mapper.PurchaseOrderMapper">
 
-    <!-- 采购订单详情（连表查询供应商信息 + 明细列表） -->
-    <!-- 在 Phase Three 实现具体 SQL -->
+    <!-- 按供应商分组统计采购次数与总金额 -->
+    <select id="selectSupplierOrderStats" resultType="java.util.Map">
+        SELECT supplier_id                         AS supplierId,
+               COUNT(*)                            AS purchaseCount,
+               COALESCE(SUM(total_amount), 0)      AS totalAmount
+        FROM oms_purchase_order
+        WHERE enterprise_id = #{enterpriseId}
+          AND supplier_id IN
+          <foreach collection="supplierIds" item="id" open="(" close=")" separator=",">
+              #{id}
+          </foreach>
+        GROUP BY supplier_id
+    </select>
+
+    <!-- 查询指定供应商的最近采购订单 -->
+    <select id="selectRecentOrdersBySupplier" resultType="java.util.Map">
+        SELECT id, order_no AS orderNo, total_amount AS totalAmount,
+               status, created_at AS createdAt
+        FROM oms_purchase_order
+        WHERE enterprise_id = #{enterpriseId}
+          AND supplier_id = #{supplierId}
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 批量查询采购订单的商品明细（用于生成商品摘要） -->
+    <select id="selectOrderItemsByOrderIds" resultType="java.util.Map">
+        SELECT order_id AS orderId, product_name AS productName, quantity
+        FROM oms_purchase_order_item
+        WHERE order_id IN
+        <foreach collection="orderIds" item="id" open="(" close=")" separator=",">
+            #{id}
+        </foreach>
+        ORDER BY order_id, id
+    </select>
 
 </mapper>
