@@ -1,8 +1,8 @@
-# 采购系统自动部署流水线
-# 策略：GitHub Actions 跑测试 → SSH 到服务器拉代码编译部署
-# 避免 SCP 上传大 JAR（服务器带宽仅 3Mbps）
+# 采购系统 CI 流水线
+# 每次 push 自动运行 77 个 JUnit 测试，确保代码质量
+# 部署仍通过手动 deploy.sh 执行（服务器带宽限制，不适合自动 SCP）
 
-name: Build & Deploy
+name: CI - Test
 
 on:
   push:
@@ -11,12 +11,16 @@ on:
     paths:
       - 'procurement-server/**'
       - '.github/workflows/**'
-  workflow_dispatch:  # 允许手动触发
+  pull_request:
+    branches:
+      - 'appmod/java-upgrade-20260302-001'
+  workflow_dispatch:
 
 jobs:
   test:
-    name: Run Tests
+    name: Build & Test
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,37 +36,6 @@ jobs:
         working-directory: procurement-server
         run: mvn test -B
 
-  deploy:
-    name: Deploy to Server
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          command_timeout: 10m
-          script: |
-            set -e
-            echo "=== 1. Pull latest code ==="
-            cd /opt/procurement/source || {
-              echo "First time setup: cloning repo..."
-              git clone https://github.com/SheepLazyFan/procurement-system-uniapp.git /opt/procurement/source
-              cd /opt/procurement/source
-            }
-            git fetch origin
-            git checkout appmod/java-upgrade-20260302-001
-            git pull origin appmod/java-upgrade-20260302-001
-
-            echo "=== 2. Build JAR ==="
-            cd procurement-server
-            mvn package -B -DskipTests -q
-
-            echo "=== 3. Deploy & Restart ==="
-            cp target/procurement-server-1.0.0.jar /opt/procurement/procurement-server-1.0.0.jar
-            systemctl restart procurement
-            sleep 5
-            systemctl is-active procurement
-            echo "=== Deploy complete! ==="
+      - name: Build JAR (verify)
+        working-directory: procurement-server
+        run: mvn package -B -DskipTests
