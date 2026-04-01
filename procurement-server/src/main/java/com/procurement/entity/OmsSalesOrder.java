@@ -39,6 +39,15 @@ public class OmsSalesOrder extends BaseEntity {
     /** 支付状态：UNPAID/PAID */
     private String paymentStatus;
 
+    /** 收货地址（下单时快照） */
+    private String deliveryAddress;
+
     /** 订单备注 */
     private String remark;
+
+    /** 订单来源：BUYER=买家线上下单 MERCHANT=商家手动开单 */
+    private String orderSource;
+
+    /** 取消操作方：BUYER=买家取消 MERCHANT=商家取消 */
+    private String cancelBy;
 }

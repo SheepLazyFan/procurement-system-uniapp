@@ -7,9 +7,9 @@ import { get, post, put } from './request'
 export const getStoreInfo = (enterpriseId) =>
   get(`/buyer/store/${enterpriseId}`)
 
-/** 商家分类列表 */
-export const getStoreCategories = (enterpriseId) =>
-  get(`/buyer/store/${enterpriseId}/categories`)
+/** 商家分类列表（可传 stockStatus / priceMin / priceMax 使分类数量与筛选同步） */
+export const getStoreCategories = (enterpriseId, params) =>
+  get(`/buyer/store/${enterpriseId}/categories`, params)
 
 /** 商家商品列表 */
 export const getStoreProducts = (enterpriseId, params) =>
@@ -27,6 +27,10 @@ export const createBuyerOrder = (data) =>
 export const payBuyerOrder = (id) =>
   put(`/buyer/orders/${id}/pay`)
 
+/** 买家声明线下已付款（UNPAID → CLAIMED） */
+export const claimBuyerOrderPaid = (id) =>
+  put(`/buyer/orders/${id}/claim-paid`)
+
 /** 我的订单列表 */
 export const getBuyerOrders = (params) =>
   get('/buyer/orders', params)
@@ -34,3 +38,7 @@ export const getBuyerOrders = (params) =>
 /** 订单详情 */
 export const getBuyerOrderDetail = (id) =>
   get(`/buyer/orders/${id}`)
+
+/** 买家取消订单 */
+export const cancelBuyerOrder = (id) =>
+  put(`/buyer/orders/${id}/cancel`)

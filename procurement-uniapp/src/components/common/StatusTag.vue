@@ -25,37 +25,38 @@ export default {
   display: inline-flex;
   align-items: center;
   padding: 4rpx 16rpx;
-  border-radius: 8rpx;
-  font-size: 22rpx;
+  border-radius: var(--radius-sm);
+  font-size: 24rpx;
+  font-weight: 500;
 
   &--primary {
-    background-color: #e8f0fe;
-    .status-tag__text { color: #2979ff; }
+    background-color: var(--brand-primary-light);
+    .status-tag__text { color: var(--brand-primary); }
   }
 
   &--success {
-    background-color: #e8f8eb;
-    .status-tag__text { color: #18bc37; }
+    background-color: var(--color-success-light);
+    .status-tag__text { color: var(--color-success); }
   }
 
   &--warning {
-    background-color: #fff7e6;
-    .status-tag__text { color: #f3a73f; }
+    background-color: var(--color-warning-light);
+    .status-tag__text { color: var(--color-warning); }
   }
 
   &--danger {
-    background-color: #fef0ef;
-    .status-tag__text { color: #e43d33; }
+    background-color: var(--color-danger-light);
+    .status-tag__text { color: var(--color-danger); }
   }
 
   &--info {
-    background-color: #f5f5f5;
-    .status-tag__text { color: #999; }
+    background-color: var(--border-light);
+    .status-tag__text { color: var(--text-secondary); }
   }
 
   &--purple {
-    background-color: #f3edff;
-    .status-tag__text { color: #7c3aed; }
+    background-color: rgba(139, 92, 246, 0.1);
+    .status-tag__text { color: #8B5CF6; }
   }
 }
 </style>

@@ -9,9 +9,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -34,6 +36,7 @@ public class CategoryController {
 
     @Operation(summary = "创建分类")
     @PostMapping
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
     public R<PmsCategory> create(@AuthenticationPrincipal LoginUser loginUser,
                                   @Valid @RequestBody CategoryRequest request) {
         return R.ok(categoryService.create(loginUser.getEnterpriseId(), request));
@@ -41,6 +44,7 @@ public class CategoryController {
 
     @Operation(summary = "更新分类")
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
     public R<PmsCategory> update(@AuthenticationPrincipal LoginUser loginUser,
                                   @PathVariable Long id,
                                   @Valid @RequestBody CategoryRequest request) {
@@ -49,14 +53,32 @@ public class CategoryController {
 
     @Operation(summary = "删除分类")
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
     public R<Void> delete(@AuthenticationPrincipal LoginUser loginUser,
                            @PathVariable Long id) {
         categoryService.delete(loginUser.getEnterpriseId(), id);
         return R.ok();
     }
 
+    @Operation(summary = "按筛选条件统计各分类商品种数")
+    @GetMapping("/stats")
+    public R<Map<Long, Long>> stats(
+            @AuthenticationPrincipal LoginUser loginUser,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean stockWarning,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Integer minStock,
+            @RequestParam(required = false) Integer maxStock,
+            @RequestParam(required = false) Integer status) {
+        return R.ok(categoryService.getFilteredStats(
+                loginUser.getEnterpriseId(), keyword, stockWarning,
+                minPrice, maxPrice, minStock, maxStock, status));
+    }
+
     @Operation(summary = "批量更新排序")
     @PutMapping("/sort")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
     public R<Void> batchSort(@AuthenticationPrincipal LoginUser loginUser,
                               @RequestBody List<Map<String, Object>> sortList) {
         categoryService.batchSort(loginUser.getEnterpriseId(), sortList);

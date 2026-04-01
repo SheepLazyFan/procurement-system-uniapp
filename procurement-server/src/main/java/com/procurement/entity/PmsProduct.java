@@ -49,6 +49,12 @@ public class PmsProduct extends BaseEntity {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> images;
 
+    /** 二维码图片 URL（扫码查看演示视频等）— 当前本地存储 data/image/，部署后迁移 COS */
+    private String qrcodeImage;
+
+    /** 商品描述（图文介绍） */
+    private String description;
+
     /** 状态：1=上架，0=下架 */
     private Integer status;
 }

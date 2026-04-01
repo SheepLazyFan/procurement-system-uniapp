@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.procurement.mapper.ProductMapper">
+
+    <!--
+        按分类统计上架商品数，支持库存状态和价格区间过滤，供买家端分类标签徽章使用。
+        未分配分类（category_id IS NULL）的商品不计入，避免影响已有分类的数字。
+        keyword 不做过滤（关键字为临时搜索，不计入分类数量）。
+        sortBy 对计数无意义，无需传入。
+    -->
+    <select id="countByCategoryIdFiltered" resultType="java.util.Map">
+        SELECT category_id, COUNT(*) AS cnt
+        FROM pms_product
+        WHERE enterprise_id = #{enterpriseId}
+          AND status = 1
+          AND is_deleted = 0
+          AND category_id IS NOT NULL
+          <if test="stockStatus != null and stockStatus == 'IN_STOCK'">
+              AND stock &gt; 0
+          </if>
+          <if test="stockStatus != null and stockStatus == 'OUT_OF_STOCK'">
+              AND stock &lt;= 0
+          </if>
+          <if test="priceMin != null">
+              AND price &gt;= #{priceMin}
+          </if>
+          <if test="priceMax != null">
+              AND price &lt;= #{priceMax}
+          </if>
+        GROUP BY category_id
+    </select>
+
+</mapper>

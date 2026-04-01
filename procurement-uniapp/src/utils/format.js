@@ -89,6 +89,7 @@ export const SALES_ORDER_STATUS = {
  */
 export const PURCHASE_ORDER_STATUS = {
   DRAFT: '草稿',
+  PENDING: '待处理',
   PURCHASING: '采购中',
   ARRIVED: '已到货',
   COMPLETED: '已完成',
@@ -104,9 +105,16 @@ export const PAYMENT_STATUS = {
 }
 
 /**
- * 获取订单状态文字
+ * 获取销售订单状态文字
+ * @param {string} status - 订单状态
+ * @param {string} [cancelBy] - 取消操作方（仅 SELLER/ADMIN 调用时传入）
  */
-export function getSalesStatusText(status) {
+export function getSalesStatusText(status, cancelBy) {
+  if (status === 'CANCELLED' && cancelBy) {
+    if (cancelBy === 'SYSTEM') return '已超时'
+    if (cancelBy === 'SALES') return '销售员已取消'
+    if (cancelBy === 'BUYER') return '买家已取消'
+  }
   return SALES_ORDER_STATUS[status] || status
 }
 

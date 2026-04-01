@@ -1,6 +1,5 @@
 package com.procurement.service;
 
-import com.procurement.dto.request.LoginRequest;
 import com.procurement.dto.request.WxLoginRequest;
 import com.procurement.dto.response.LoginResponse;
 
@@ -10,17 +9,7 @@ import com.procurement.dto.response.LoginResponse;
 public interface AuthService {
 
     /**
-     * 发送短信验证码
-     */
-    void sendSmsCode(String phone);
-
-    /**
-     * 手机号 + 验证码登录（自动注册）
-     */
-    LoginResponse login(LoginRequest request);
-
-    /**
-     * 微信授权登录（买家端）
+     * 微信授权登录
      */
     LoginResponse wxLogin(WxLoginRequest request);
 
@@ -28,4 +17,14 @@ public interface AuthService {
      * 退出登录（Token 加入黑名单）
      */
     void logout(String token);
+
+    /**
+     * 更新用户头像
+     */
+    String updateAvatar(Long userId, String avatarUrl);
+
+    /**
+     * 更新用户昵称
+     */
+    void updateNickName(Long userId, String nickName);
 }

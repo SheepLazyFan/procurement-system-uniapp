@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,6 +28,7 @@ public class TeamController {
 
     @Operation(summary = "团队成员列表")
     @GetMapping("/members")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES', 'WAREHOUSE')")
     public R<List<Map<String, Object>>> listMembers(@AuthenticationPrincipal LoginUser loginUser) {
         return R.ok(teamService.listMembers(loginUser.getEnterpriseId()));
     }
@@ -39,7 +41,8 @@ public class TeamController {
         return R.ok(teamService.joinByInviteCode(loginUser.getUserId(), inviteCode));
     }
 
-    @Operation(summary = "设置成员权限")
+    @Operation(summary = "设置成员权限（仅 SELLER/ADMIN）")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
     @PutMapping("/members/{id}/permissions")
     public R<Void> setPermissions(@AuthenticationPrincipal LoginUser loginUser,
                                    @PathVariable Long id,
@@ -48,7 +51,8 @@ public class TeamController {
         return R.ok();
     }
 
-    @Operation(summary = "移除成员")
+    @Operation(summary = "移除成员（仅 SELLER/ADMIN）")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
     @DeleteMapping("/members/{id}")
     public R<Void> removeMember(@AuthenticationPrincipal LoginUser loginUser,
                                  @PathVariable Long id) {

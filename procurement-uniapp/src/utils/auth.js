@@ -23,15 +23,14 @@ export function isLoggedIn() {
 }
 
 /**
- * 登录拦截 — 未登录则跳转登录页
- * @param {string} redirectUrl - 登录后跳回的页面路径
+ * 登录拦截 — 未登录则提示并跳转库存首页
+ * 注：微信登录在 App.vue onLaunch 中自动完成，此处仅作安全兆底
  * @returns {boolean} 是否已登录
  */
-export function requireLogin(redirectUrl) {
+export function requireLogin() {
   if (!isLoggedIn()) {
-    uni.navigateTo({
-      url: `/pages/auth/login?redirect=${encodeURIComponent(redirectUrl || '')}`
-    })
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    uni.reLaunch({ url: '/pages/inventory/index' })
     return false
   }
   return true

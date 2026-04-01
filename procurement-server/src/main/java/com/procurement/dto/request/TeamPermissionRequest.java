@@ -12,6 +12,10 @@ import java.util.Map;
 @Data
 public class TeamPermissionRequest implements Serializable {
 
-    @NotNull(message = "权限配置不能为空")
+    /** 成员角色：ADMIN / SALES / WAREHOUSE */
+    @NotNull(message = "角色不能为空")
+    private String role;
+
+    /** 权限配置（可选，预留字段） */
     private Map<String, Boolean> permissions;
 }

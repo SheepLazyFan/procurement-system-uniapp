@@ -4,6 +4,9 @@ import com.procurement.dto.request.PurchaseOrderRequest;
 import com.procurement.dto.response.PageResponse;
 import com.procurement.dto.response.PurchaseOrderResponse;
 
+import java.math.BigDecimal;
+import java.util.Map;
+
 /**
  * 采购订单服务接口
  */
@@ -13,7 +16,15 @@ public interface PurchaseOrderService {
      * 分页查询采购订单
      */
     PageResponse<PurchaseOrderResponse> listByPage(Long enterpriseId, Integer pageNum, Integer pageSize,
-                                                    String status, Long supplierId);
+                                                    String status, Long supplierId,
+                                                    String keyword, String startDate, String endDate,
+                                                    BigDecimal minAmount, BigDecimal maxAmount, String sortBy);
+
+    /**
+     * 各状态订单数量统计（支持筛选条件）
+     */
+    Map<String, Long> countByStatus(Long enterpriseId, String keyword, String startDate, String endDate,
+                                     BigDecimal minAmount, BigDecimal maxAmount, Long supplierId);
 
     /**
      * 获取订单详情

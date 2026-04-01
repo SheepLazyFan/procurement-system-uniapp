@@ -30,9 +30,7 @@ public enum ResultCode {
     ENTERPRISE_ALREADY_EXISTS(40901, "已创建企业，不可重复创建"),
     STOCK_INSUFFICIENT(40902, "库存不足"),
     CATEGORY_HAS_PRODUCTS(40903, "该分类下存在商品，无法删除"),
-    SMS_SEND_TOO_FREQUENT(40904, "验证码发送过于频繁"),
-    SMS_CODE_INVALID(40905, "验证码错误或已过期"),
-    WX_LOGIN_FAILED(40906, "微信登录失败"),
+    WX_LOGIN_FAILED(40904, "微信登录失败"),
     ORDER_STATUS_ERROR(40907, "订单状态不允许此操作"),
 
     // 服务器 500xx

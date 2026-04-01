@@ -16,4 +16,5 @@ public class EnterpriseResponse implements Serializable {
     private String contactName;
     private String inviteCode;
     private String logoUrl;
+    private String paymentQrUrl;
 }

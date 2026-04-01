@@ -4,26 +4,26 @@
  */
 
 /* ========== 品牌主色 ========== */
-$brand-color: #2979ff;
-$brand-color-light: #e8f0fe;
-$brand-color-dark: #1a5fc9;
+$brand-color: #3B82F6;
+$brand-color-light: rgba(59, 130, 246, 0.1);
+$brand-color-dark: #2563EB;
 
 /* ========== 行为相关颜色 ========== */
-$uni-color-primary: #2979ff;
-$uni-color-success: #18bc37;
-$uni-color-warning: #f3a73f;
-$uni-color-error: #e43d33;
+$uni-color-primary: #3B82F6;
+$uni-color-success: #10B981;
+$uni-color-warning: #F59E0B;
+$uni-color-error: #EF4444;
 
 /* ========== 文字颜色 ========== */
-$uni-text-color: #333333;
+$uni-text-color: #111827;
 $uni-text-color-inverse: #ffffff;
-$uni-text-color-grey: #999999;
-$uni-text-color-placeholder: #cccccc;
-$uni-text-color-disable: #c0c0c0;
+$uni-text-color-grey: #6B7280;
+$uni-text-color-placeholder: #9CA3AF;
+$uni-text-color-disable: #D1D5DB;
 
 /* ========== 背景颜色 ========== */
 $uni-bg-color: #ffffff;
-$uni-bg-color-grey: #f5f6fa;
+$uni-bg-color-grey: #F7F9FA;
 $uni-bg-color-hover: #f1f1f1;
 $uni-bg-color-mask: rgba(0, 0, 0, 0.4);
 
@@ -49,10 +49,10 @@ $uni-border-radius-lg: 16rpx;
 $uni-border-radius-circle: 50%;
 
 /* ========== 业务相关颜色 ========== */
-$price-color: #ff4d4f;
-$profit-color: #18bc37;
-$stock-warning-color: #f3a73f;
-$order-pending-color: #2979ff;
-$order-confirmed-color: #18bc37;
-$order-shipped-color: #7c3aed;
-$order-completed-color: #999999;
+$price-color: #EF4444;
+$profit-color: #10B981;
+$stock-warning-color: #F59E0B;
+$order-pending-color: #3B82F6;
+$order-confirmed-color: #10B981;
+$order-shipped-color: #8B5CF6;
+$order-completed-color: #9CA3AF;

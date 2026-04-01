@@ -13,13 +13,17 @@ import java.util.List;
 @Data
 public class SalesOrderResponse implements Serializable {
     private Long id;
+    private Long enterpriseId;
     private String orderNo;
     private String status;
     private String paymentStatus;
     private BigDecimal totalAmount;
     private BigDecimal totalCost;
     private BigDecimal totalProfit;
+    private String deliveryAddress;
     private String remark;
+    private String orderSource;
+    private String cancelBy;
     private LocalDateTime createdAt;
 
     /** 客户信息 */

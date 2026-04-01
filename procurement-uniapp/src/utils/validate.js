@@ -5,8 +5,7 @@
 /** 手机号正则 */
 const PHONE_REG = /^1[3-9]\d{9}$/
 
-/** 验证码正则（6 位数字） */
-const SMS_CODE_REG = /^\d{6}$/
+// SMS 验证码功能已废弃 — 全部使用微信授权登录
 
 /**
  * 验证手机号
@@ -17,14 +16,7 @@ export function isValidPhone(phone) {
   return PHONE_REG.test(phone)
 }
 
-/**
- * 验证短信验证码
- * @param {string} code
- * @returns {boolean}
- */
-export function isValidSmsCode(code) {
-  return SMS_CODE_REG.test(code)
-}
+// isValidSmsCode() 已移除 — 不再使用短信验证码
 
 /**
  * 验证价格（正数，最多两位小数）

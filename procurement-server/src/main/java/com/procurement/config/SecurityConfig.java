@@ -6,6 +6,7 @@ import com.procurement.common.result.ResultCode;
 import com.procurement.security.JwtAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -20,9 +21,16 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Spring Security 配置 — JWT 无状态认证、白名单、CORS
+ * <p>
+ * swagger.security.permit=true（dev）：Swagger UI 端点无需认证，便于开发调试
+ * swagger.security.permit=false（prod）：所有 Swagger 端点均需认证，防止 API 泄露
+ * </p>
  */
 @Configuration
 @EnableWebSecurity
@@ -34,23 +42,42 @@ public class SecurityConfig {
     private final ObjectMapper objectMapper;
 
     /**
-     * 白名单路径 — 无需 JWT 认证
+     * 生产环境通过 application-prod.yml 将此值设为 false，
+     * 彻底关闭 Swagger/API-docs 的匿名访问。
      */
-    private static final String[] WHITE_LIST = {
-            "/auth/sms/send",
-            "/auth/login",
+    @Value("${swagger.security.permit:true}")
+    private boolean swaggerPermitAll;
+
+    /**
+     * 所有环境均放行的路径（业务必要白名单）
+     */
+    private static final String[] BUSINESS_WHITE_LIST = {
             "/auth/wx-login",
             "/buyer/store/**",
             "/buyer/product/**",
+            "/local-files/**",     // 本地文件访问（开发阶段）— TODO: 部署COS后移除
+            "/favicon.ico"
+    };
+
+    /**
+     * 仅开发环境放行的 Swagger 路径（生产通过 swagger.security.permit=false 关闭）
+     */
+    private static final String[] SWAGGER_PATHS = {
             "/doc.html",
             "/swagger-ui/**",
             "/v3/api-docs/**",
-            "/webjars/**",
-            "/favicon.ico"
+            "/webjars/**"
     };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // 动态组装白名单：生产环境不包含 Swagger 路径
+        List<String> whiteList = new ArrayList<>(Arrays.asList(BUSINESS_WHITE_LIST));
+        if (swaggerPermitAll) {
+            whiteList.addAll(Arrays.asList(SWAGGER_PATHS));
+        }
+        String[] effectiveWhiteList = whiteList.toArray(new String[0]);
+
         http
                 // 禁用 CSRF（前后端分离 + JWT 无状态）
                 .csrf(AbstractHttpConfigurer::disable)
@@ -59,9 +86,7 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // 路由权限
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(WHITE_LIST).permitAll()
-                        // 买家订单相关 — 需认证，任何角色可访问
-                        .requestMatchers("/buyer/orders/**").authenticated()
+                        .requestMatchers(effectiveWhiteList).permitAll()
                         // 卖家/团队管理 — 仅 SELLER 和 MEMBER
                         .requestMatchers(
                                 "/sales-orders/**", "/purchase-orders/**",
@@ -69,7 +94,7 @@ public class SecurityConfig {
                                 "/customers/**", "/suppliers/**",
                                 "/statistics/**", "/team/**",
                                 "/backup/**", "/enterprise/**",
-                                "/file/**"
+                                "/file/**", "/files/**", "/subscribe/**"
                         ).hasAnyRole("SELLER", "MEMBER")
                         .anyRequest().authenticated()
                 )

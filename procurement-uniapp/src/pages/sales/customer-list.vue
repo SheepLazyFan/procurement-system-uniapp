@@ -4,20 +4,25 @@
 
     <view class="customer-list container">
       <view
-        v-for="item in customerList"
+        v-for="(item, index) in customerList"
         :key="item.id"
-        class="customer-card card"
+        class="customer-card saas-card animate-fade-up"
+        :style="{ 'animation-delay': (index % 10) * 0.05 + 's' }"
+        hover-class="saas-card-push"
+        :hover-start-time="0"
+        :hover-stay-time="100"
         @tap="handleTap(item)"
       >
         <view class="customer-card__header">
           <text class="customer-card__name">{{ item.name }}</text>
         </view>
         <view class="customer-card__info">
-          <text class="customer-card__phone">📞 {{ item.phone || '-' }}</text>
+          <view class="customer-card__phone-icon"></view>
+          <text class="customer-card__phone">{{ item.phone || '-' }}</text>
         </view>
         <view class="customer-card__stats">
           <text class="customer-card__stat">下单 {{ item.orderCount || 0 }} 次</text>
-          <text class="customer-card__stat">累计 ¥{{ item.totalAmount || 0 }}</text>
+          <text class="customer-card__stat">累计 <text class="num-font highlight">¥{{ item.totalAmount || 0 }}</text></text>
         </view>
       </view>
 
@@ -25,7 +30,7 @@
       <LoadMore v-if="customerList.length > 0" :status="loadMoreStatus" @load="loadMore" />
     </view>
 
-    <view class="fab" @tap="goAdd">
+    <view class="fab" @tap="goAdd" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">
       <text class="fab__text">+</text>
     </view>
   </view>
@@ -112,27 +117,51 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.page-customer-list {
+  padding-bottom: calc(180rpx + env(safe-area-inset-bottom));
+}
+
 .customer-card {
   &__header { margin-bottom: 8rpx; }
-  &__name { font-size: 30rpx; font-weight: 600; color: #333; }
-  &__phone { font-size: 26rpx; color: #666; margin-bottom: 8rpx; }
-  &__stats { display: flex; gap: 32rpx; }
-  &__stat { font-size: 24rpx; color: #999; }
+  &__name { font-size: 32rpx; font-weight: 600; color: var(--text-primary); }
+  &__info { 
+    display: flex;
+    align-items: center;
+    margin-bottom: 12rpx; 
+  }
+  &__phone-icon {
+    width: 26rpx;
+    height: 26rpx;
+    margin-right: 8rpx;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C0C4CC' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z'%3E%3C/path%3E%3C/svg%3E");
+    background-size: cover;
+  }
+  &__phone { font-size: 26rpx; color: var(--text-secondary); font-family: var(--font-number); }
+  &__stats { display: flex; gap: 32rpx; align-items: baseline; }
+  &__stat { font-size: 24rpx; color: var(--text-tertiary); }
+  
+  .highlight {
+    color: var(--color-danger);
+    font-size: 30rpx;
+    font-weight: 700;
+    margin-left: 8rpx;
+  }
 }
 
 .fab {
   position: fixed;
   right: 32rpx;
-  bottom: 160rpx;
-  width: 96rpx;
-  height: 96rpx;
-  background: #2979ff;
-  border-radius: 50%;
+  bottom: calc(120rpx + env(safe-area-inset-bottom));
+  width: 104rpx;
+  height: 104rpx;
+  background: var(--brand-primary);
+  border-radius: 52rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4rpx 16rpx rgba(41, 121, 255, 0.4);
+  box-shadow: 0 8rpx 32rpx rgba(41, 121, 255, 0.4);
+  z-index: 100;
 
-  &__text { font-size: 48rpx; color: #fff; }
+  &__text { font-size: 56rpx; color: #fff; font-weight: 300; line-height: 1; margin-bottom: 8rpx; }
 }
 </style>

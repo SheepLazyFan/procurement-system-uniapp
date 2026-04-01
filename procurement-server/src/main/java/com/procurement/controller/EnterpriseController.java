@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +41,7 @@ public class EnterpriseController {
 
     @Operation(summary = "更新企业信息")
     @PutMapping
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
     public R<EnterpriseResponse> update(@AuthenticationPrincipal LoginUser loginUser,
                                          @Valid @RequestBody EnterpriseRequest request) {
         return R.ok(enterpriseService.update(loginUser.getEnterpriseId(), request));
@@ -47,6 +49,7 @@ public class EnterpriseController {
 
     @Operation(summary = "刷新邀请码")
     @PutMapping("/invite-code/refresh")
+    @PreAuthorize("hasRole('SELLER')")
     public R<Map<String, String>> refreshInviteCode(@AuthenticationPrincipal LoginUser loginUser) {
         String newCode = enterpriseService.refreshInviteCode(loginUser.getEnterpriseId());
         return R.ok(Map.of("inviteCode", newCode));

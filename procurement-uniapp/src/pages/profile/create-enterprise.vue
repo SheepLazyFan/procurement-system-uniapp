@@ -38,6 +38,7 @@ import NavBar from '@/components/common/NavBar.vue'
 import { useEnterpriseStore } from '@/store/enterprise'
 import { useUserStore } from '@/store/user'
 import { joinByInviteCode } from '@/api/team'
+import { WX_STOCK_WARNING_TEMPLATE_ID } from '@/config/index'
 
 export default {
   components: { NavBar },
@@ -52,24 +53,57 @@ export default {
       if (!this.form.name) return uni.showToast({ title: '请输入企业名称', icon: 'none' })
       try {
         await useEnterpriseStore().createEnterprise(this.form)
-        uni.showToast({ title: '创建成功' })
-        // 刷新用户信息后回到个人中心
         await useUserStore().fetchProfile()
-        setTimeout(() => uni.navigateBack(), 500)
+        uni.showToast({ title: '创建成功', icon: 'success' })
+        setTimeout(() => this.goBack(), 500)
       } catch (e) {
         uni.showToast({ title: e.message || '创建失败', icon: 'none' })
       }
     },
     async handleJoin() {
-      if (!this.inviteCode) return uni.showToast({ title: '请输入邀请码', icon: 'none' })
+      if (!this.inviteCode.trim()) return uni.showToast({ title: '请输入邀请码', icon: 'none' })
+
+      // 在 tap 直接回调链中申请订阅配额，加入成功后方可推送预警通知
+      // #ifdef MP-WEIXIN
+      let subscribeAccepted = false
+      await new Promise(resolve => {
+        wx.requestSubscribeMessage({
+          tmplIds: [WX_STOCK_WARNING_TEMPLATE_ID],
+          success: (res) => {
+            subscribeAccepted = res[WX_STOCK_WARNING_TEMPLATE_ID] === 'accept'
+          },
+          complete: () => resolve()
+        })
+      })
+      // #endif
+
       try {
         await joinByInviteCode(this.inviteCode)
-        uni.showToast({ title: '加入成功' })
         await useUserStore().fetchProfile()
-        setTimeout(() => uni.navigateBack(), 500)
+        // #ifdef MP-WEIXIN
+        if (subscribeAccepted) {
+          useUserStore().setNotifyEnabled(true)
+        }
+        // #endif
+        uni.showToast({ title: '加入成功', icon: 'success' })
+        setTimeout(() => this.goBack(), 500)
       } catch (e) {
         uni.showToast({ title: e.message || '加入失败', icon: 'none' })
       }
+    },
+    goBack() {
+      // 获取页面栈判断来源
+      const pages = getCurrentPages()
+      if (pages.length > 1) {
+        const prev = pages[pages.length - 2]
+        // 如果上一页是 tabBar 页，用 switchTab 确保 onShow 正常触发
+        const tabPages = ['pages/inventory/index', 'pages/purchase/index', 'pages/sales/index', 'pages/statistics/index', 'pages/profile/index']
+        if (tabPages.includes(prev.route)) {
+          uni.switchTab({ url: '/' + prev.route })
+          return
+        }
+      }
+      uni.navigateBack()
     }
   }
 }

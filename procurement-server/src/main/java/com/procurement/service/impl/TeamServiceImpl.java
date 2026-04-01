@@ -31,11 +31,36 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     public List<Map<String, Object>> listMembers(Long enterpriseId) {
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        // 1. 将店主（企业所有者）放在首位
+        SysEnterprise enterprise = enterpriseMapper.selectById(enterpriseId);
+        if (enterprise != null && enterprise.getOwnerId() != null) {
+            SysUser owner = userMapper.selectById(enterprise.getOwnerId());
+            if (owner != null) {
+                Map<String, Object> ownerItem = new LinkedHashMap<>();
+                ownerItem.put("id", null);
+                ownerItem.put("userId", owner.getId());
+                ownerItem.put("role", "SELLER");
+                ownerItem.put("nickName", owner.getNickName());
+                ownerItem.put("phone", owner.getPhone());
+                ownerItem.put("joinedAt", enterprise.getCreatedAt());
+                result.add(ownerItem);
+            }
+        }
+
+        // 2. 查询团队成员
         List<SysTeamMember> members = teamMemberMapper.selectList(
                 new LambdaQueryWrapper<SysTeamMember>()
                         .eq(SysTeamMember::getEnterpriseId, enterpriseId));
 
-        List<Map<String, Object>> result = new ArrayList<>();
+        // 批量预加载成员用户信息（消除 N+1）
+        Set<Long> userIds = members.stream().map(SysTeamMember::getUserId).collect(java.util.stream.Collectors.toSet());
+        Map<Long, SysUser> userMap = userIds.isEmpty()
+                ? Collections.emptyMap()
+                : userMapper.selectBatchIds(userIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(SysUser::getId, u -> u));
+
         for (SysTeamMember member : members) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", member.getId());
@@ -44,8 +69,7 @@ public class TeamServiceImpl implements TeamService {
             item.put("permissions", member.getPermissions());
             item.put("joinedAt", member.getCreatedAt());
 
-            // 查询用户信息
-            SysUser user = userMapper.selectById(member.getUserId());
+            SysUser user = userMap.get(member.getUserId());
             if (user != null) {
                 item.put("nickName", user.getNickName());
                 item.put("phone", user.getPhone());
@@ -89,21 +113,15 @@ public class TeamServiceImpl implements TeamService {
         SysTeamMember member = new SysTeamMember();
         member.setEnterpriseId(enterprise.getId());
         member.setUserId(userId);
-        member.setRole(UserConstants.ROLE_MEMBER);
-
-        // 默认权限
-        Map<String, Boolean> defaultPermissions = new LinkedHashMap<>();
-        defaultPermissions.put("inventory", true);
-        defaultPermissions.put("order", true);
-        defaultPermissions.put("statistics", false);
-        member.setPermissions(defaultPermissions);
+        member.setRole(UserConstants.MEMBER_ROLE_SALES); // 默认角色：销售员
 
         teamMemberMapper.insert(member);
 
-        // 更新用户的 enterpriseId
+        // 更新用户的 enterpriseId，并默认开启库存预警通知
         SysUser user = userMapper.selectById(userId);
         user.setEnterpriseId(enterprise.getId());
         user.setRole(UserConstants.ROLE_MEMBER);
+        user.setNotifyStockWarning(1);
         userMapper.updateById(user);
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -119,7 +137,24 @@ public class TeamServiceImpl implements TeamService {
         if (member == null || !member.getEnterpriseId().equals(enterpriseId)) {
             throw new BusinessException(ResultCode.NOT_FOUND);
         }
-        member.setPermissions(request.getPermissions());
+
+        // 检查是否为企业所有者（不允许修改店主角色）
+        SysEnterprise enterprise = enterpriseMapper.selectById(enterpriseId);
+        if (enterprise != null && enterprise.getOwnerId().equals(member.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN.getCode(), "不能修改企业所有者的角色");
+        }
+
+        // 验证角色值
+        String role = request.getRole();
+        if (!UserConstants.VALID_MEMBER_ROLES.contains(role)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR.getCode(),
+                    "无效角色，允许值：ADMIN / SALES / WAREHOUSE");
+        }
+
+        member.setRole(role);
+        if (request.getPermissions() != null) {
+            member.setPermissions(request.getPermissions());
+        }
         teamMemberMapper.updateById(member);
     }
 
@@ -144,7 +179,7 @@ public class TeamServiceImpl implements TeamService {
         SysUser user = userMapper.selectById(member.getUserId());
         if (user != null) {
             user.setEnterpriseId(null);
-            user.setRole(UserConstants.ROLE_SELLER);
+            user.setRole(UserConstants.ROLE_MEMBER);
             userMapper.updateById(user);
         }
     }

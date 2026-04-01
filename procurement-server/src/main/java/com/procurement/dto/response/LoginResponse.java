@@ -21,6 +21,8 @@ public class LoginResponse implements Serializable {
         private Long id;
         private String phone;
         private String role;
+        /** 团队成员角色：ADMIN / SALES / WAREHOUSE（仅 MEMBER 角色时有值） */
+        private String memberRole;
         private String nickName;
         private String avatarUrl;
         private Long enterpriseId;

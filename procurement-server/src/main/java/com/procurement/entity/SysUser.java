@@ -41,4 +41,11 @@ public class SysUser extends BaseEntity {
 
     /** 最后登录时间 */
     private LocalDateTime lastLoginAt;
+
+    /**
+     * 库存预警订阅通知开关：1=已开启，0=已关闭。
+     * 默认为 0，用户在小程序中授权后由后端置 1；
+     * 关闭时置 0，Scheduler 推送前检查此标志。
+     */
+    private Integer notifyStockWarning;
 }

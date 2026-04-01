@@ -1,7 +1,7 @@
 <template>
   <view class="search-bar">
     <view class="search-bar__input-wrap">
-      <text class="search-bar__icon">🔍</text>
+      <view class="search-bar__icon"></view>
       <input
         class="search-bar__input"
         type="text"
@@ -52,32 +52,43 @@ export default {
   display: flex;
   align-items: center;
   padding: 16rpx 24rpx;
-  background-color: #fff;
+  background-color: transparent;
 
   &__input-wrap {
     flex: 1;
     display: flex;
     align-items: center;
-    background-color: #f5f6fa;
-    border-radius: 32rpx;
-    padding: 12rpx 24rpx;
-    height: 64rpx;
+    background-color: #fff;
+    border-radius: 36rpx;
+    padding: 0 24rpx;
+    height: 72rpx;
+    box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.04);
+    border: 2rpx solid transparent;
+    transition: all 0.2s;
+    
+    &:focus-within {
+      border-color: rgba(41, 121, 255, 0.3);
+      box-shadow: 0 6rpx 20rpx rgba(41, 121, 255, 0.08);
+    }
   }
 
   &__icon {
-    font-size: 28rpx;
+    width: 32rpx;
+    height: 32rpx;
     margin-right: 12rpx;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A0AEC0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+    background-size: cover;
   }
 
   &__input {
     flex: 1;
     font-size: 28rpx;
-    color: #333;
+    color: var(--text-primary);
   }
 
   &__clear {
     font-size: 28rpx;
-    color: #ccc;
+    color: var(--text-tertiary);
     padding: 8rpx;
   }
 
@@ -87,7 +98,8 @@ export default {
 
   &__action-text {
     font-size: 28rpx;
-    color: #2979ff;
+    font-weight: 600;
+    color: var(--brand-primary);
   }
 }
 </style>

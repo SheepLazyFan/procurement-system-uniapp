@@ -6,6 +6,10 @@ import com.procurement.dto.request.StockAdjustRequest;
 import com.procurement.dto.response.ImportResultResponse;
 import com.procurement.dto.response.PageResponse;
 import com.procurement.dto.response.ProductResponse;
+import org.springframework.web.multipart.MultipartFile;
+
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 
 /**
  * 商品管理服务接口
@@ -16,7 +20,11 @@ public interface ProductService {
      * 分页查询商品
      */
     PageResponse<ProductResponse> listByPage(Long enterpriseId, Integer pageNum, Integer pageSize,
-                                              Long categoryId, String keyword, Boolean stockWarning);
+                                              Long categoryId, String keyword, Boolean stockWarning,
+                                              Long supplierId,
+                                              java.math.BigDecimal minPrice, java.math.BigDecimal maxPrice,
+                                              Integer minStock, Integer maxStock,
+                                              Integer status, String sortBy);
 
     /**
      * 获取商品详情
@@ -41,7 +49,7 @@ public interface ProductService {
     /**
      * 调整库存
      */
-    Integer adjustStock(Long enterpriseId, Long productId, StockAdjustRequest request);
+    Integer adjustStock(Long enterpriseId, Long productId, StockAdjustRequest request, String callerMemberRole);
 
     /**
      * 库存预警列表
@@ -49,7 +57,13 @@ public interface ProductService {
     PageResponse<ProductResponse> stockWarnings(Long enterpriseId, Integer pageNum, Integer pageSize);
 
     /**
-     * 批量导入商品（暂不实现业务逻辑，等待与客户沟通表格格式）
+     * 批量导入商品（Excel 文件上传）
+     * @param importMode TEMPLATE=标准模板 | SUPPLIER=供应商价格表
      */
-    ImportResultResponse batchImport(Long enterpriseId, Long userId, BatchImportRequest request);
+    ImportResultResponse batchImport(Long enterpriseId, Long userId, MultipartFile file, String duplicateStrategy, String importMode);
+
+    /**
+     * 下载导入模板 Excel
+     */
+    void downloadImportTemplate(HttpServletResponse response) throws IOException;
 }

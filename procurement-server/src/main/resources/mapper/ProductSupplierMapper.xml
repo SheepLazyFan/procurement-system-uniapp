@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.procurement.mapper.ProductSupplierMapper">
+
+    <!--
+      selectLinkedProducts:
+      联查 pms_product + pms_category，返回供应商下已绑定商品的详细信息。
+      supplierCount 子查询返回该商品在同企业内绑定的供应商总数，前端用于解绑提示。
+    -->
+    <select id="selectLinkedProducts" resultType="java.util.Map">
+        SELECT
+            ps.product_id      AS productId,
+            p.name             AS productName,
+            p.spec             AS spec,
+            p.unit             AS unit,
+            p.category_id      AS categoryId,
+            c.name             AS categoryName,
+            ps.supply_price    AS supplyPrice,
+            p.stock            AS stock,
+            (SELECT COUNT(*)
+               FROM pms_product_supplier ps2
+              WHERE ps2.enterprise_id = #{enterpriseId}
+                AND ps2.product_id    = ps.product_id
+                AND ps2.is_deleted    = 0) AS supplierCount
+        FROM pms_product_supplier ps
+        JOIN pms_product p
+          ON p.id = ps.product_id AND p.is_deleted = 0
+        LEFT JOIN pms_category c
+          ON c.id = p.category_id AND c.is_deleted = 0
+        WHERE ps.enterprise_id = #{enterpriseId}
+          AND ps.supplier_id   = #{supplierId}
+          AND ps.is_deleted    = 0
+          <if test="keyword != null and keyword != ''">
+            AND p.name LIKE CONCAT('%', #{keyword}, '%')
+          </if>
+          <if test="categoryId != null">
+            AND p.category_id = #{categoryId}
+          </if>
+        ORDER BY ps.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countLinkedProducts" resultType="long">
+        SELECT COUNT(*)
+        FROM pms_product_supplier ps
+        JOIN pms_product p
+          ON p.id = ps.product_id AND p.is_deleted = 0
+        WHERE ps.enterprise_id = #{enterpriseId}
+          AND ps.supplier_id   = #{supplierId}
+          AND ps.is_deleted    = 0
+          <if test="keyword != null and keyword != ''">
+            AND p.name LIKE CONCAT('%', #{keyword}, '%')
+          </if>
+          <if test="categoryId != null">
+            AND p.category_id = #{categoryId}
+          </if>
+    </select>
+
+    <select id="countSuppliersByProduct" resultType="int">
+        SELECT COUNT(*)
+        FROM pms_product_supplier
+        WHERE enterprise_id = #{enterpriseId}
+          AND product_id    = #{productId}
+          AND is_deleted    = 0
+    </select>
+
+</mapper>

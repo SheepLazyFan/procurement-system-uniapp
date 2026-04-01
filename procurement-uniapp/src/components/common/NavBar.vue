@@ -2,7 +2,7 @@
   <view class="navbar" :style="{ paddingTop: statusBarHeight + 'px' }">
     <view class="navbar__content" :style="{ height: navBarHeight + 'px' }">
       <view class="navbar__left" v-if="showBack" @tap="handleBack">
-        <text class="navbar__back-icon">&#xe60b;</text>
+        <view class="navbar__back-arrow" />
       </view>
       <view class="navbar__title">
         <text class="navbar__title-text">{{ title }}</text>
@@ -68,9 +68,12 @@ export default {
     align-items: center;
   }
 
-  &__back-icon {
-    font-size: 36rpx;
-    color: #333;
+  &__back-arrow {
+    width: 18rpx;
+    height: 18rpx;
+    border-left: 4rpx solid #333;
+    border-bottom: 4rpx solid #333;
+    transform: rotate(45deg);
   }
 
   &__title {

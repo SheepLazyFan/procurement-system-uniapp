@@ -8,7 +8,6 @@ import com.procurement.dto.request.CustomerRequest;
 import com.procurement.dto.response.CustomerResponse;
 import com.procurement.dto.response.PageResponse;
 import com.procurement.entity.CrmCustomer;
-import com.procurement.entity.OmsSalesOrder;
 import com.procurement.mapper.CustomerMapper;
 import com.procurement.mapper.SalesOrderMapper;
 import com.procurement.service.CustomerService;
@@ -18,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.*;
 
 /**
  * 客户管理服务实现
@@ -45,8 +44,22 @@ public class CustomerServiceImpl implements CustomerService {
         Page<CrmCustomer> page = customerMapper.selectPage(
                 new Page<>(pageNum, pageSize), wrapper);
 
-        List<CustomerResponse> records = page.getRecords().stream()
-                .map(c -> toResponse(c, enterpriseId)).toList();
+        List<CrmCustomer> customers = page.getRecords();
+        if (customers.isEmpty()) {
+            return PageResponse.of(Collections.emptyList(), page.getTotal(), pageNum, pageSize);
+        }
+
+        // SQL 聚合：一次查询所有客户的订单统计
+        Set<Long> customerIds = new HashSet<>();
+        customers.forEach(c -> customerIds.add(c.getId()));
+        Map<Long, Map<String, Object>> statsMap = new HashMap<>();
+        List<Map<String, Object>> statsList = salesOrderMapper.selectCustomerOrderStats(enterpriseId, customerIds);
+        for (Map<String, Object> s : statsList) {
+            statsMap.put(((Number) s.get("customerId")).longValue(), s);
+        }
+
+        List<CustomerResponse> records = customers.stream()
+                .map(c -> toResponse(c, statsMap.get(c.getId()))).toList();
 
         return PageResponse.of(records, page.getTotal(), pageNum, pageSize);
     }
@@ -57,7 +70,26 @@ public class CustomerServiceImpl implements CustomerService {
         if (customer == null || !customer.getEnterpriseId().equals(enterpriseId)) {
             throw new BusinessException(ResultCode.NOT_FOUND);
         }
-        return toResponse(customer, enterpriseId);
+        List<Map<String, Object>> stats = salesOrderMapper.selectCustomerOrderStats(
+                enterpriseId, Collections.singleton(id));
+        CustomerResponse resp = toResponse(customer, stats.isEmpty() ? null : stats.get(0));
+
+        // 填充最近订单记录
+        List<Map<String, Object>> recentRows = salesOrderMapper.selectRecentOrdersByCustomer(
+                enterpriseId, id, 10);
+        List<CustomerResponse.RecentOrder> recentOrders = recentRows.stream().map(row -> {
+            CustomerResponse.RecentOrder ro = new CustomerResponse.RecentOrder();
+            ro.setId(((Number) row.get("id")).longValue());
+            ro.setOrderNo((String) row.get("orderNo"));
+            ro.setTotalAmount((BigDecimal) row.get("totalAmount"));
+            ro.setStatus((String) row.get("status"));
+            ro.setPaymentStatus((String) row.get("paymentStatus"));
+            ro.setCreatedAt(row.get("createdAt") != null ? row.get("createdAt").toString() : null);
+            return ro;
+        }).toList();
+        resp.setRecentOrders(recentOrders);
+
+        return resp;
     }
 
     @Override
@@ -70,7 +102,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setAddress(request.getAddress());
         customer.setRemark(request.getRemark());
         customerMapper.insert(customer);
-        return toResponse(customer, enterpriseId);
+        return toResponse(customer, null);
     }
 
     @Override
@@ -86,7 +118,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setAddress(request.getAddress());
         customer.setRemark(request.getRemark());
         customerMapper.updateById(customer);
-        return toResponse(customer, enterpriseId);
+        return toResponse(customer, null);
     }
 
     @Override
@@ -100,9 +132,9 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     /**
-     * Entity → Response DTO（含统计字段）
+     * Entity → Response DTO（使用 SQL 聚合统计数据替代全表扫描）
      */
-    private CustomerResponse toResponse(CrmCustomer customer, Long enterpriseId) {
+    private CustomerResponse toResponse(CrmCustomer customer, Map<String, Object> stats) {
         CustomerResponse resp = new CustomerResponse();
         resp.setId(customer.getId());
         resp.setName(customer.getName());
@@ -110,16 +142,13 @@ public class CustomerServiceImpl implements CustomerService {
         resp.setAddress(customer.getAddress());
         resp.setRemark(customer.getRemark());
 
-        // 统计订单数量和总金额
-        List<OmsSalesOrder> orders = salesOrderMapper.selectList(
-                new LambdaQueryWrapper<OmsSalesOrder>()
-                        .eq(OmsSalesOrder::getEnterpriseId, enterpriseId)
-                        .eq(OmsSalesOrder::getCustomerId, customer.getId()));
-
-        resp.setOrderCount(orders.size());
-        resp.setTotalAmount(orders.stream()
-                .map(OmsSalesOrder::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        if (stats != null) {
+            resp.setOrderCount(((Number) stats.get("orderCount")).intValue());
+            resp.setTotalAmount((BigDecimal) stats.get("totalAmount"));
+        } else {
+            resp.setOrderCount(0);
+            resp.setTotalAmount(BigDecimal.ZERO);
+        }
 
         return resp;
     }

@@ -33,4 +33,7 @@ public class SysEnterprise extends BaseEntity {
 
     /** 企业 Logo URL */
     private String logoUrl;
+
+    /** 收款二维码图片 URL（买家扫码付款用） */
+    private String paymentQrUrl;
 }

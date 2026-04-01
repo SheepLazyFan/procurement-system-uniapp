@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -36,8 +37,12 @@ public class BuyerController {
 
     @Operation(summary = "商家分类列表")
     @GetMapping("/store/{enterpriseId}/categories")
-    public R<List<Map<String, Object>>> getStoreCategories(@PathVariable Long enterpriseId) {
-        return R.ok(buyerService.getStoreCategories(enterpriseId));
+    public R<List<Map<String, Object>>> getStoreCategories(
+            @PathVariable Long enterpriseId,
+            @RequestParam(required = false) String stockStatus,
+            @RequestParam(required = false) BigDecimal priceMin,
+            @RequestParam(required = false) BigDecimal priceMax) {
+        return R.ok(buyerService.getStoreCategories(enterpriseId, stockStatus, priceMin, priceMax));
     }
 
     @Operation(summary = "商家商品列表")
@@ -46,9 +51,16 @@ public class BuyerController {
             @PathVariable Long enterpriseId,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String stockStatus,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) BigDecimal priceMin,
+            @RequestParam(required = false) BigDecimal priceMax,
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "20") Integer pageSize) {
-        return R.ok(buyerService.getStoreProducts(enterpriseId, categoryId, keyword, pageNum, pageSize));
+        return R.ok(buyerService.getStoreProducts(
+                enterpriseId, categoryId, keyword,
+                stockStatus, sortBy, priceMin, priceMax,
+                pageNum, pageSize));
     }
 
     @Operation(summary = "商品详情")
@@ -72,6 +84,14 @@ public class BuyerController {
         return R.ok();
     }
 
+    @Operation(summary = "买家声明线下已付款（UNPAID → CLAIMED）")
+    @PutMapping("/orders/{id}/claim-paid")
+    public R<Void> claimPaid(@AuthenticationPrincipal LoginUser loginUser,
+                              @PathVariable Long id) {
+        buyerService.claimPaid(loginUser.getUserId(), id);
+        return R.ok();
+    }
+
     @Operation(summary = "我的订单列表")
     @GetMapping("/orders")
     public R<PageResponse<SalesOrderResponse>> listOrders(
@@ -87,5 +107,13 @@ public class BuyerController {
     public R<SalesOrderResponse> getOrderDetail(@AuthenticationPrincipal LoginUser loginUser,
                                                  @PathVariable Long id) {
         return R.ok(buyerService.getOrderDetail(loginUser.getUserId(), id));
+    }
+
+    @Operation(summary = "买家取消订单")
+    @PutMapping("/orders/{id}/cancel")
+    public R<Void> cancelOrder(@AuthenticationPrincipal LoginUser loginUser,
+                                @PathVariable Long id) {
+        buyerService.cancelOrder(loginUser.getUserId(), id);
+        return R.ok();
     }
 }

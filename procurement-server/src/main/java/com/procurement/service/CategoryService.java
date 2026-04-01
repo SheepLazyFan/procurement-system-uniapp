@@ -3,6 +3,7 @@ package com.procurement.service;
 import com.procurement.dto.request.CategoryRequest;
 import com.procurement.entity.PmsCategory;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -35,4 +36,11 @@ public interface CategoryService {
      * 批量更新排序
      */
     void batchSort(Long enterpriseId, List<Map<String, Object>> sortList);
+
+    /**
+     * 按当前筛选条件统计各分类的商品种数（不含分类维度本身）
+     */
+    Map<Long, Long> getFilteredStats(Long enterpriseId, String keyword, Boolean stockWarning,
+                                     BigDecimal minPrice, BigDecimal maxPrice,
+                                     Integer minStock, Integer maxStock, Integer status);
 }

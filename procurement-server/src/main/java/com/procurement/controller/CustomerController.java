@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -44,6 +45,7 @@ public class CustomerController {
 
     @Operation(summary = "添加客户")
     @PostMapping
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES')")
     public R<CustomerResponse> create(@AuthenticationPrincipal LoginUser loginUser,
                                        @Valid @RequestBody CustomerRequest request) {
         return R.ok(customerService.create(loginUser.getEnterpriseId(), request));
@@ -51,6 +53,7 @@ public class CustomerController {
 
     @Operation(summary = "更新客户")
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES')")
     public R<CustomerResponse> update(@AuthenticationPrincipal LoginUser loginUser,
                                        @PathVariable Long id,
                                        @Valid @RequestBody CustomerRequest request) {
@@ -59,6 +62,7 @@ public class CustomerController {
 
     @Operation(summary = "删除客户")
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES')")
     public R<Void> delete(@AuthenticationPrincipal LoginUser loginUser,
                            @PathVariable Long id) {
         customerService.delete(loginUser.getEnterpriseId(), id);

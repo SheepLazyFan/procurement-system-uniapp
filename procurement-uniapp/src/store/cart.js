@@ -9,7 +9,7 @@ export const useCartStore = defineStore('cart', {
     enterpriseId: null,
     /** 购物车商品列表 */
     items: []
-    // item: { productId, name, spec, unit, price, quantity, stock, image }
+    // item: { productId, name, spec, unit, price, quantity, image }
   }),
 
   getters: {
@@ -19,7 +19,7 @@ export const useCartStore = defineStore('cart', {
 
     /** 购物车总金额 */
     totalAmount: (state) =>
-      state.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+      state.items.reduce((sum, item) => sum + Number(item.price || 0) * item.quantity, 0),
 
     /** 购物车是否为空 */
     isEmpty: (state) => state.items.length === 0
@@ -43,12 +43,7 @@ export const useCartStore = defineStore('cart', {
     addItem(product) {
       const existing = this.items.find(i => i.productId === product.productId)
       if (existing) {
-        // 不超过库存
-        if (existing.quantity < product.stock) {
-          existing.quantity++
-        } else {
-          uni.showToast({ title: '不能超过库存数量', icon: 'none' })
-        }
+        existing.quantity += (product.quantity || 1)
       } else {
         this.items.push({
           productId: product.productId,
@@ -56,8 +51,7 @@ export const useCartStore = defineStore('cart', {
           spec: product.spec || '',
           unit: product.unit || '',
           price: product.price,
-          quantity: 1,
-          stock: product.stock,
+          quantity: product.quantity || 1,
           image: product.image || ''
         })
       }
@@ -72,8 +66,6 @@ export const useCartStore = defineStore('cart', {
       if (item) {
         if (quantity <= 0) {
           this.removeItem(productId)
-        } else if (quantity > item.stock) {
-          uni.showToast({ title: '不能超过库存数量', icon: 'none' })
         } else {
           item.quantity = quantity
           this._save()

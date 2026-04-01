@@ -2,7 +2,7 @@
   "pages": [
     {
       "path": "pages/inventory/index",
-      "style": { "navigationBarTitleText": "库存管理" }
+      "style": { "navigationBarTitleText": "库存管理", "enablePullDownRefresh": true }
     },
     {
       "path": "pages/inventory/category",
@@ -17,12 +17,8 @@
       "style": { "navigationBarTitleText": "批量导入" }
     },
     {
-      "path": "pages/inventory/statistics",
-      "style": { "navigationBarTitleText": "库存统计" }
-    },
-    {
       "path": "pages/purchase/index",
-      "style": { "navigationBarTitleText": "采购订单" }
+      "style": { "navigationBarTitleText": "采购订单", "enablePullDownRefresh": true }
     },
     {
       "path": "pages/purchase/detail",
@@ -42,7 +38,7 @@
     },
     {
       "path": "pages/sales/index",
-      "style": { "navigationBarTitleText": "销售订单" }
+      "style": { "navigationBarTitleText": "销售订单", "enablePullDownRefresh": true }
     },
     {
       "path": "pages/sales/detail",
@@ -74,23 +70,27 @@
     },
     {
       "path": "pages/profile/enterprise",
-      "style": { "navigationBarTitleText": "我的企业" }
+      "style": { "navigationBarTitleText": "企业信息", "navigationStyle": "custom" }
     },
     {
       "path": "pages/profile/create-enterprise",
-      "style": { "navigationBarTitleText": "创建企业" }
+      "style": { "navigationBarTitleText": "创建企业", "navigationStyle": "custom" }
     },
     {
       "path": "pages/profile/team",
-      "style": { "navigationBarTitleText": "团队管理" }
+      "style": { "navigationBarTitleText": "团队管理", "navigationStyle": "custom" }
     },
     {
       "path": "pages/profile/printer",
-      "style": { "navigationBarTitleText": "打印机管理" }
+      "style": { "navigationBarTitleText": "打印机管理", "navigationStyle": "custom" }
     },
     {
       "path": "pages/profile/backup",
-      "style": { "navigationBarTitleText": "数据备份" }
+      "style": { "navigationBarTitleText": "数据备份", "navigationStyle": "custom" }
+    },
+    {
+      "path": "pages/profile/edit-profile",
+      "style": { "navigationBarTitleText": "编辑资料", "navigationStyle": "custom" }
     },
     {
       "path": "pages/auth/login",
@@ -98,7 +98,7 @@
     },
     {
       "path": "pages/buyer/store",
-      "style": { "navigationBarTitleText": "商家库存" }
+      "style": { "navigationBarTitleText": "商家库存", "enablePullDownRefresh": true }
     },
     {
       "path": "pages/buyer/product-detail",
@@ -106,11 +106,11 @@
     },
     {
       "path": "pages/buyer/cart",
-      "style": { "navigationBarTitleText": "采购清单" }
+      "style": { "navigationBarTitleText": "采购清单", "navigationStyle": "custom" }
     },
     {
       "path": "pages/buyer/checkout",
-      "style": { "navigationBarTitleText": "提交订单" }
+      "style": { "navigationBarTitleText": "提交订单", "navigationStyle": "custom" }
     },
     {
       "path": "pages/buyer/pay-success",
@@ -118,7 +118,11 @@
     },
     {
       "path": "pages/buyer/orders",
-      "style": { "navigationBarTitleText": "我的订单" }
+      "style": { "navigationBarTitleText": "我的订单", "navigationStyle": "custom", "enablePullDownRefresh": true }
+    },
+    {
+      "path": "pages/buyer/order-detail",
+      "style": { "navigationBarTitleText": "订单详情" }
     }
   ],
   "globalStyle": {

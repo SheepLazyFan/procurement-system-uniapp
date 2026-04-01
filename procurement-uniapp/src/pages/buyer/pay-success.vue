@@ -1,7 +1,7 @@
 <template>
   <view class="page-pay-success">
     <view class="success-icon">✅</view>
-    <text class="success-title">订单提交成功</text>
+    <text class="success-title">支付成功</text>
     <text class="success-amount" v-if="amount">¥{{ amount }}</text>
     <text class="success-tip">商家将尽快处理您的订单</text>
 
@@ -17,19 +17,25 @@ export default {
   data() {
     return {
       orderId: '',
-      amount: ''
+      amount: '',
+      enterpriseId: ''
     }
   },
   onLoad(query) {
     this.orderId = query.orderId || ''
     this.amount = query.amount || ''
+    this.enterpriseId = query.enterpriseId || ''
   },
   methods: {
     goOrders() {
       uni.redirectTo({ url: '/pages/buyer/orders' })
     },
     goStore() {
-      uni.navigateBack({ delta: 10 })
+      if (this.enterpriseId) {
+        uni.navigateTo({ url: `/pages/buyer/store?enterpriseId=${this.enterpriseId}` })
+      } else {
+        uni.navigateBack({ delta: 10 })
+      }
     }
   }
 }

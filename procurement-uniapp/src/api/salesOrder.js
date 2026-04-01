@@ -7,6 +7,10 @@ import { get, post, put } from './request'
 export const getSalesOrderList = (params) =>
   get('/sales-orders', params)
 
+/** 各状态订单数量 */
+export const getSalesOrderCounts = (params) =>
+  get('/sales-orders/count-by-status', params)
+
 /** 订单详情 */
 export const getSalesOrderDetail = (id) =>
   get(`/sales-orders/${id}`)

@@ -6,7 +6,7 @@
       <!-- 商品列表 -->
       <view class="card" v-for="item in cartItems" :key="item.productId">
         <view class="cart-item">
-          <image v-if="item.image" :src="item.image" class="item-img" mode="aspectFill" />
+          <image v-if="item.image" :src="$fileUrl(item.image)" class="item-img" mode="aspectFill" />
           <view v-else class="item-img-placeholder">📦</view>
           <view class="item-info">
             <text class="item-name">{{ item.name }}</text>
@@ -36,7 +36,7 @@
       </view>
     </view>
 
-    <EmptyState v-else text="购物车是空的" icon="🛒" actionText="去逛逛" @action="goBack" />
+    <EmptyState v-else text="购物车是空的" icon="🛒" buttonText="去逛逛" @action="goBack" />
   </view>
 </template>
 
@@ -60,6 +60,12 @@ export default {
   },
   onLoad(query) {
     this.enterpriseId = query.enterpriseId || ''
+    useCartStore().restoreFromStorage()
+  },
+  onShow() {
+    // 从结算页/其他页面返回时，微信小程序不保证后台页面响应式更新
+    // 主动从 storage 同步最新状态（clearCart 已写入 storage）
+    useCartStore().restoreFromStorage()
   },
   methods: {
     changeQty(item, delta) {
@@ -80,7 +86,12 @@ export default {
       uni.navigateTo({ url: `/pages/buyer/checkout?enterpriseId=${this.enterpriseId}` })
     },
     goBack() {
-      uni.navigateBack()
+      const eid = useCartStore().enterpriseId || this.enterpriseId
+      if (eid) {
+        uni.navigateTo({ url: `/pages/buyer/store?enterpriseId=${eid}` })
+      } else {
+        uni.navigateBack({ delta: 1 })
+      }
     }
   }
 }

@@ -10,8 +10,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+import java.util.Map;
 
 /**
  * 采购订单控制器
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/purchase-orders")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'WAREHOUSE')")
 public class PurchaseOrderController {
 
     private final PurchaseOrderService purchaseOrderService;
@@ -31,9 +36,29 @@ public class PurchaseOrderController {
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) Long supplierId) {
+            @RequestParam(required = false) Long supplierId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) BigDecimal minAmount,
+            @RequestParam(required = false) BigDecimal maxAmount,
+            @RequestParam(required = false) String sortBy) {
         return R.ok(purchaseOrderService.listByPage(loginUser.getEnterpriseId(),
-                pageNum, pageSize, status, supplierId));
+                pageNum, pageSize, status, supplierId, keyword, startDate, endDate, minAmount, maxAmount, sortBy));
+    }
+
+    @Operation(summary = "各状态订单数量")
+    @GetMapping("/count-by-status")
+    public R<Map<String, Long>> countByStatus(
+            @AuthenticationPrincipal LoginUser loginUser,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) BigDecimal minAmount,
+            @RequestParam(required = false) BigDecimal maxAmount,
+            @RequestParam(required = false) Long supplierId) {
+        return R.ok(purchaseOrderService.countByStatus(loginUser.getEnterpriseId(),
+                keyword, startDate, endDate, minAmount, maxAmount, supplierId));
     }
 
     @Operation(summary = "订单详情")

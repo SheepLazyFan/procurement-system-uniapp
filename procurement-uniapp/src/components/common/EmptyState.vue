@@ -1,13 +1,14 @@
 <template>
   <view class="empty-state">
+    <!-- URL/图片路径 → <image>；emoji / 文字 → <text> 避免渲染层500错误 -->
     <image
-      v-if="icon"
+      v-if="iconIsUrl"
       class="empty-state__icon"
       :src="icon"
       mode="aspectFit"
     />
     <view v-else class="empty-state__default-icon">
-      <text class="empty-state__emoji">📭</text>
+      <text class="empty-state__emoji">{{ icon || '📭' }}</text>
     </view>
     <text class="empty-state__text">{{ text }}</text>
     <view v-if="buttonText" class="empty-state__btn" @tap="$emit('action')">
@@ -21,8 +22,15 @@ export default {
   name: 'EmptyState',
   props: {
     text: { type: String, default: '暂无数据' },
+    /** 支持 emoji（直接渲染为文字）或图片路径（/ 或 http 开头才渲染为 image） */
     icon: { type: String, default: '' },
     buttonText: { type: String, default: '' }
+  },
+  computed: {
+    iconIsUrl() {
+      return this.icon &&
+        (this.icon.startsWith('/') || this.icon.startsWith('http') || this.icon.startsWith('static/'))
+    }
   },
   emits: ['action']
 }

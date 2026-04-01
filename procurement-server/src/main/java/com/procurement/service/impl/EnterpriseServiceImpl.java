@@ -9,6 +9,7 @@ import com.procurement.entity.SysEnterprise;
 import com.procurement.entity.SysUser;
 import com.procurement.mapper.EnterpriseMapper;
 import com.procurement.mapper.UserMapper;
+import com.procurement.common.constant.UserConstants;
 import com.procurement.service.EnterpriseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -52,9 +53,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             throw new BusinessException(ResultCode.ENTERPRISE_ALREADY_EXISTS);
         }
 
-        // 更新用户的 enterpriseId
+        // 更新用户的 enterpriseId，并确认身份为店主
         SysUser user = userMapper.selectById(userId);
         user.setEnterpriseId(enterprise.getId());
+        user.setRole(UserConstants.ROLE_SELLER);
         userMapper.updateById(user);
 
         return toResponse(enterprise);
@@ -86,6 +88,12 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         enterprise.setAddress(request.getAddress());
         enterprise.setContactPhone(request.getContactPhone());
         enterprise.setContactName(request.getContactName());
+        if (request.getPaymentQrUrl() != null) {
+            enterprise.setPaymentQrUrl(request.getPaymentQrUrl());
+        }
+        if (request.getLogoUrl() != null) {
+            enterprise.setLogoUrl(request.getLogoUrl());
+        }
         enterpriseMapper.updateById(enterprise);
 
         return toResponse(enterprise);
@@ -133,6 +141,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         resp.setContactName(entity.getContactName());
         resp.setInviteCode(entity.getInviteCode());
         resp.setLogoUrl(entity.getLogoUrl());
+        resp.setPaymentQrUrl(entity.getPaymentQrUrl());
         return resp;
     }
 }

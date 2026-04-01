@@ -28,7 +28,7 @@ public class ProductRequest implements Serializable {
     private String unit;
 
     @NotNull(message = "售价不能为空")
-    @DecimalMin(value = "0.00", message = "售价不能为负数")
+    @DecimalMin(value = "0.01", message = "售价必须大于0")
     private BigDecimal price;
 
     @DecimalMin(value = "0.00", message = "成本价不能为负数")
@@ -42,4 +42,12 @@ public class ProductRequest implements Serializable {
 
     /** 商品图片 URL 列表 */
     private List<String> images;
+
+    /** 二维码图片 URL（扫码查看演示视频）— 当前本地存储，部署后迁移 COS */
+    @Size(max = 500, message = "二维码图片URL最长500字符")
+    private String qrcodeImage;
+
+    /** 商品描述 */
+    @Size(max = 2000, message = "商品描述最长2000字符")
+    private String description;
 }

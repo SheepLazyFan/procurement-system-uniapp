@@ -27,4 +27,11 @@ public class FileController {
                                           @RequestParam(value = "type", defaultValue = "image") String type) {
         return R.ok(fileService.upload(file, type));
     }
+
+    @Operation(summary = "删除文件")
+    @DeleteMapping("/delete")
+    public R<Void> delete(@RequestParam("url") String url) {
+        fileService.delete(url);
+        return R.ok();
+    }
 }

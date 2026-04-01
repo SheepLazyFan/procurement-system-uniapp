@@ -8,7 +8,6 @@ import com.procurement.dto.request.SupplierRequest;
 import com.procurement.dto.response.PageResponse;
 import com.procurement.dto.response.SupplierResponse;
 import com.procurement.entity.CrmSupplier;
-import com.procurement.entity.OmsPurchaseOrder;
 import com.procurement.mapper.PurchaseOrderMapper;
 import com.procurement.mapper.SupplierMapper;
 import com.procurement.service.SupplierService;
@@ -18,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 供应商管理服务实现
@@ -45,8 +45,22 @@ public class SupplierServiceImpl implements SupplierService {
         Page<CrmSupplier> page = supplierMapper.selectPage(
                 new Page<>(pageNum, pageSize), wrapper);
 
-        List<SupplierResponse> records = page.getRecords().stream()
-                .map(s -> toResponse(s, enterpriseId)).toList();
+        List<CrmSupplier> suppliers = page.getRecords();
+        if (suppliers.isEmpty()) {
+            return PageResponse.of(Collections.emptyList(), page.getTotal(), pageNum, pageSize);
+        }
+
+        // SQL 聚合：一次查询所有供应商的采购统计
+        Set<Long> supplierIds = new HashSet<>();
+        suppliers.forEach(s -> supplierIds.add(s.getId()));
+        Map<Long, Map<String, Object>> statsMap = new HashMap<>();
+        List<Map<String, Object>> statsList = purchaseOrderMapper.selectSupplierOrderStats(enterpriseId, supplierIds);
+        for (Map<String, Object> s : statsList) {
+            statsMap.put(((Number) s.get("supplierId")).longValue(), s);
+        }
+
+        List<SupplierResponse> records = suppliers.stream()
+                .map(s -> toResponse(s, statsMap.get(s.getId()))).toList();
 
         return PageResponse.of(records, page.getTotal(), pageNum, pageSize);
     }
@@ -57,7 +71,63 @@ public class SupplierServiceImpl implements SupplierService {
         if (supplier == null || !supplier.getEnterpriseId().equals(enterpriseId)) {
             throw new BusinessException(ResultCode.NOT_FOUND);
         }
-        return toResponse(supplier, enterpriseId);
+        List<Map<String, Object>> stats = purchaseOrderMapper.selectSupplierOrderStats(
+                enterpriseId, Collections.singleton(id));
+        SupplierResponse resp = toResponse(supplier, stats.isEmpty() ? null : stats.get(0));
+
+        // 填充最近采购记录
+        List<Map<String, Object>> recentRows = purchaseOrderMapper.selectRecentOrdersBySupplier(
+                enterpriseId, id, 10);
+        List<SupplierResponse.RecentOrder> recentOrders = recentRows.stream().map(row -> {
+            SupplierResponse.RecentOrder ro = new SupplierResponse.RecentOrder();
+            ro.setId(((Number) row.get("id")).longValue());
+            ro.setOrderNo((String) row.get("orderNo"));
+            ro.setTotalAmount((BigDecimal) row.get("totalAmount"));
+            ro.setStatus((String) row.get("status"));
+            ro.setCreatedAt(row.get("createdAt") != null ? row.get("createdAt").toString() : null);
+            return ro;
+        }).toList();
+
+        // 批量查询商品明细，构建商品摘要（避免N+1查询）
+        if (!recentOrders.isEmpty()) {
+            List<Long> orderIds = recentOrders.stream()
+                    .map(SupplierResponse.RecentOrder::getId).toList();
+            List<Map<String, Object>> itemRows = purchaseOrderMapper.selectOrderItemsByOrderIds(orderIds);
+
+            // 按订单ID分组
+            Map<Long, List<Map<String, Object>>> itemsByOrder = itemRows.stream()
+                    .collect(Collectors.groupingBy(r -> ((Number) r.get("orderId")).longValue()));
+
+            for (SupplierResponse.RecentOrder ro : recentOrders) {
+                ro.setItemSummary(buildItemSummary(itemsByOrder.get(ro.getId())));
+            }
+        }
+
+        resp.setRecentOrders(recentOrders);
+        return resp;
+    }
+
+    /**
+     * 构建商品摘要：取前2个商品名×数量，总数超过2则追加"等N种"
+     * 例：铅笔×100、橡皮×50 等3种
+     */
+    private String buildItemSummary(List<Map<String, Object>> items) {
+        if (items == null || items.isEmpty()) {
+            return "无商品";
+        }
+        int total = items.size();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(2, total); i++) {
+            if (i > 0) sb.append("、");
+            Map<String, Object> item = items.get(i);
+            sb.append(item.get("productName"))
+              .append("×")
+              .append(((Number) item.get("quantity")).intValue());
+        }
+        if (total > 2) {
+            sb.append(" 等").append(total).append("种");
+        }
+        return sb.toString();
     }
 
     @Override
@@ -71,7 +141,7 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setMainCategory(request.getMainCategory());
         supplier.setRemark(request.getRemark());
         supplierMapper.insert(supplier);
-        return toResponse(supplier, enterpriseId);
+        return toResponse(supplier, null);
     }
 
     @Override
@@ -88,7 +158,7 @@ public class SupplierServiceImpl implements SupplierService {
         supplier.setMainCategory(request.getMainCategory());
         supplier.setRemark(request.getRemark());
         supplierMapper.updateById(supplier);
-        return toResponse(supplier, enterpriseId);
+        return toResponse(supplier, null);
     }
 
     @Override
@@ -102,9 +172,9 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     /**
-     * Entity → Response DTO（含统计字段）
+     * Entity → Response DTO（使用 SQL 聚合统计数据替代全表扫描）
      */
-    private SupplierResponse toResponse(CrmSupplier supplier, Long enterpriseId) {
+    private SupplierResponse toResponse(CrmSupplier supplier, Map<String, Object> stats) {
         SupplierResponse resp = new SupplierResponse();
         resp.setId(supplier.getId());
         resp.setName(supplier.getName());
@@ -113,16 +183,13 @@ public class SupplierServiceImpl implements SupplierService {
         resp.setMainCategory(supplier.getMainCategory());
         resp.setRemark(supplier.getRemark());
 
-        // 统计采购次数和金额
-        List<OmsPurchaseOrder> orders = purchaseOrderMapper.selectList(
-                new LambdaQueryWrapper<OmsPurchaseOrder>()
-                        .eq(OmsPurchaseOrder::getEnterpriseId, enterpriseId)
-                        .eq(OmsPurchaseOrder::getSupplierId, supplier.getId()));
-
-        resp.setPurchaseCount(orders.size());
-        resp.setTotalAmount(orders.stream()
-                .map(OmsPurchaseOrder::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        if (stats != null) {
+            resp.setPurchaseCount(((Number) stats.get("purchaseCount")).intValue());
+            resp.setTotalAmount((BigDecimal) stats.get("totalAmount"));
+        } else {
+            resp.setPurchaseCount(0);
+            resp.setTotalAmount(BigDecimal.ZERO);
+        }
 
         return resp;
     }

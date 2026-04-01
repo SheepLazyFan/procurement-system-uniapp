@@ -24,4 +24,10 @@ public class EnterpriseRequest implements Serializable {
 
     @Size(max = 50, message = "联系人最长50字符")
     private String contactName;
+
+    @Size(max = 500, message = "收款二维码URL最长500字符")
+    private String paymentQrUrl;
+
+    @Size(max = 500, message = "Logo URL最长500字符")
+    private String logoUrl;
 }

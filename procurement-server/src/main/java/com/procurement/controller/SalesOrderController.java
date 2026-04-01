@@ -10,8 +10,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+import java.util.Map;
 
 /**
  * 销售订单控制器
@@ -24,6 +28,20 @@ public class SalesOrderController {
 
     private final SalesOrderService salesOrderService;
 
+    /** SELLER(memberRole=null) 和 ADMIN 才能看到财务数据 */
+    private boolean hasFinancialAccess(LoginUser loginUser) {
+        String role = loginUser.getMemberRole();
+        return role == null || "ADMIN".equals(role);
+    }
+
+    private void maskFinancials(SalesOrderResponse o) {
+        o.setTotalCost(null);
+        o.setTotalProfit(null);
+        if (o.getItems() != null) {
+            o.getItems().forEach(i -> { i.setCostPrice(null); i.setProfit(null); });
+        }
+    }
+
     @Operation(summary = "订单列表（分页）")
     @GetMapping
     public R<PageResponse<SalesOrderResponse>> list(
@@ -33,21 +51,50 @@ public class SalesOrderController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String paymentStatus,
             @RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
-        return R.ok(salesOrderService.listByPage(loginUser.getEnterpriseId(),
-                pageNum, pageSize, status, paymentStatus, customerId, startDate, endDate));
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) BigDecimal minAmount,
+            @RequestParam(required = false) BigDecimal maxAmount,
+            @RequestParam(required = false) String sortBy) {
+        PageResponse<SalesOrderResponse> result = salesOrderService.listByPage(loginUser.getEnterpriseId(),
+                pageNum, pageSize, status, paymentStatus, customerId, keyword,
+                startDate, endDate, minAmount, maxAmount, sortBy);
+        if (!hasFinancialAccess(loginUser)) {
+            result.getRecords().forEach(this::maskFinancials);
+        }
+        return R.ok(result);
+    }
+
+    @Operation(summary = "各状态订单数量")
+    @GetMapping("/count-by-status")
+    public R<Map<String, Long>> countByStatus(
+            @AuthenticationPrincipal LoginUser loginUser,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) BigDecimal minAmount,
+            @RequestParam(required = false) BigDecimal maxAmount,
+            @RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) String paymentStatus) {
+        return R.ok(salesOrderService.countByStatus(loginUser.getEnterpriseId(),
+                keyword, startDate, endDate, minAmount, maxAmount, customerId, paymentStatus));
     }
 
     @Operation(summary = "订单详情")
     @GetMapping("/{id}")
     public R<SalesOrderResponse> getById(@AuthenticationPrincipal LoginUser loginUser,
                                           @PathVariable Long id) {
-        return R.ok(salesOrderService.getById(loginUser.getEnterpriseId(), id));
+        SalesOrderResponse result = salesOrderService.getById(loginUser.getEnterpriseId(), id);
+        if (!hasFinancialAccess(loginUser)) {
+            maskFinancials(result);
+        }
+        return R.ok(result);
     }
 
     @Operation(summary = "商家开单")
     @PostMapping
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES')")
     public R<SalesOrderResponse> create(@AuthenticationPrincipal LoginUser loginUser,
                                          @Valid @RequestBody SalesOrderRequest request) {
         return R.ok(salesOrderService.create(loginUser.getEnterpriseId(), request));
@@ -55,6 +102,7 @@ public class SalesOrderController {
 
     @Operation(summary = "确认订单")
     @PutMapping("/{id}/confirm")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES')")
     public R<Void> confirm(@AuthenticationPrincipal LoginUser loginUser,
                             @PathVariable Long id) {
         salesOrderService.confirm(loginUser.getEnterpriseId(), id);
@@ -63,6 +111,7 @@ public class SalesOrderController {
 
     @Operation(summary = "标记发货")
     @PutMapping("/{id}/ship")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES', 'WAREHOUSE')")
     public R<Void> ship(@AuthenticationPrincipal LoginUser loginUser,
                          @PathVariable Long id) {
         salesOrderService.ship(loginUser.getEnterpriseId(), id);
@@ -71,6 +120,7 @@ public class SalesOrderController {
 
     @Operation(summary = "完成订单（自动扣减库存）")
     @PutMapping("/{id}/complete")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES', 'WAREHOUSE')")
     public R<Void> complete(@AuthenticationPrincipal LoginUser loginUser,
                              @PathVariable Long id) {
         salesOrderService.complete(loginUser.getEnterpriseId(), id);
@@ -79,14 +129,16 @@ public class SalesOrderController {
 
     @Operation(summary = "取消订单")
     @PutMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES')")
     public R<Void> cancel(@AuthenticationPrincipal LoginUser loginUser,
                             @PathVariable Long id) {
-        salesOrderService.cancel(loginUser.getEnterpriseId(), id);
+        salesOrderService.cancel(loginUser.getEnterpriseId(), id, loginUser.getMemberRole());
         return R.ok();
     }
 
     @Operation(summary = "标记已支付（伪支付）")
     @PutMapping("/{id}/pay")
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
     public R<Void> pay(@AuthenticationPrincipal LoginUser loginUser,
                         @PathVariable Long id) {
         salesOrderService.pay(loginUser.getEnterpriseId(), id);

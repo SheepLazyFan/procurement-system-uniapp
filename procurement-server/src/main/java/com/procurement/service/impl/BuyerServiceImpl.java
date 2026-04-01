@@ -12,19 +12,19 @@ import com.procurement.dto.response.SalesOrderResponse;
 import com.procurement.entity.*;
 import com.procurement.mapper.*;
 import com.procurement.service.BuyerService;
+import com.procurement.service.StockWarningNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
+import com.procurement.common.util.OrderNoGenerator;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 买家端服务实现
@@ -34,6 +34,9 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class BuyerServiceImpl implements BuyerService {
 
+    /** 买家端低库存阈值：stock <= 此值时返回精确数量，否则只返回 IN_STOCK */
+    private static final int BUYER_LOW_STOCK_THRESHOLD = 20;
+
     private final EnterpriseMapper enterpriseMapper;
     private final CategoryMapper categoryMapper;
     private final ProductMapper productMapper;
@@ -41,7 +44,8 @@ public class BuyerServiceImpl implements BuyerService {
     private final SalesOrderItemMapper salesOrderItemMapper;
     private final CustomerMapper customerMapper;
     private final UserMapper userMapper;
-    private final StringRedisTemplate redisTemplate;
+    private final OrderNoGenerator orderNoGenerator;
+    private final StockWarningNotificationService notificationService;
 
     @Override
     public Map<String, Object> getStoreInfo(Long enterpriseId) {
@@ -62,6 +66,7 @@ public class BuyerServiceImpl implements BuyerService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("enterpriseName", enterprise.getName());
         result.put("logoUrl", enterprise.getLogoUrl());
+        result.put("paymentQrUrl", enterprise.getPaymentQrUrl());
         result.put("contactPhone", enterprise.getContactPhone());
         result.put("categoryCount", categoryCount);
         result.put("productCount", productCount);
@@ -69,17 +74,31 @@ public class BuyerServiceImpl implements BuyerService {
     }
 
     @Override
-    public List<Map<String, Object>> getStoreCategories(Long enterpriseId) {
+    public List<Map<String, Object>> getStoreCategories(Long enterpriseId, String stockStatus,
+                                                         BigDecimal priceMin, BigDecimal priceMax) {
         List<PmsCategory> categories = categoryMapper.selectList(
                 new LambdaQueryWrapper<PmsCategory>()
                         .eq(PmsCategory::getEnterpriseId, enterpriseId)
                         .orderByAsc(PmsCategory::getSortOrder));
+
+        // 单次 SQL 获取各分类的上架商品数（含过滤条件），构建 categoryId -> count 映射
+        List<Map<String, Object>> countRows = productMapper.countByCategoryIdFiltered(
+                enterpriseId, stockStatus, priceMin, priceMax);
+        Map<Long, Long> countMap = new HashMap<>();
+        for (Map<String, Object> row : countRows) {
+            Object catId = row.get("category_id");
+            Object cnt   = row.get("cnt");
+            if (catId != null && cnt != null) {
+                countMap.put(((Number) catId).longValue(), ((Number) cnt).longValue());
+            }
+        }
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (PmsCategory cat : categories) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", cat.getId());
             item.put("name", cat.getName());
+            item.put("productCount", countMap.getOrDefault(cat.getId(), 0L));
             result.add(item);
         }
         return result;
@@ -87,11 +106,13 @@ public class BuyerServiceImpl implements BuyerService {
 
     @Override
     public PageResponse<ProductResponse> getStoreProducts(Long enterpriseId, Long categoryId,
-                                                           String keyword, Integer pageNum, Integer pageSize) {
+                                                           String keyword,
+                                                           String stockStatus, String sortBy,
+                                                           BigDecimal priceMin, BigDecimal priceMax,
+                                                           Integer pageNum, Integer pageSize) {
         LambdaQueryWrapper<PmsProduct> wrapper = new LambdaQueryWrapper<PmsProduct>()
                 .eq(PmsProduct::getEnterpriseId, enterpriseId)
-                .eq(PmsProduct::getStatus, 1)        // 仅上架商品
-                .gt(PmsProduct::getStock, 0);         // 仅有库存商品
+                .eq(PmsProduct::getStatus, 1);        // 仅上架商品
 
         if (categoryId != null) {
             wrapper.eq(PmsProduct::getCategoryId, categoryId);
@@ -100,8 +121,27 @@ public class BuyerServiceImpl implements BuyerService {
             wrapper.and(w -> w.like(PmsProduct::getName, keyword)
                     .or().like(PmsProduct::getSpec, keyword));
         }
-
-        wrapper.orderByDesc(PmsProduct::getId);
+        // 库存状态筛选（IN_STOCK: stock>0, OUT_OF_STOCK: stock<=0）
+        if ("IN_STOCK".equals(stockStatus)) {
+            wrapper.gt(PmsProduct::getStock, 0);
+        } else if ("OUT_OF_STOCK".equals(stockStatus)) {
+            wrapper.le(PmsProduct::getStock, 0);
+        }
+        // 价格区间（priceMin/priceMax 均为可选，支持单边）
+        if (priceMin != null && priceMin.compareTo(BigDecimal.ZERO) >= 0) {
+            wrapper.ge(PmsProduct::getPrice, priceMin);
+        }
+        if (priceMax != null && priceMax.compareTo(BigDecimal.ZERO) > 0) {
+            wrapper.le(PmsProduct::getPrice, priceMax);
+        }
+        // 排序：价格升/降序；默认按 ID 倒序（新品靠前）
+        if ("price_asc".equals(sortBy)) {
+            wrapper.orderByAsc(PmsProduct::getPrice);
+        } else if ("price_desc".equals(sortBy)) {
+            wrapper.orderByDesc(PmsProduct::getPrice);
+        } else {
+            wrapper.orderByDesc(PmsProduct::getId);
+        }
 
         Page<PmsProduct> page = productMapper.selectPage(
                 new Page<>(pageNum, pageSize), wrapper);
@@ -114,9 +154,21 @@ public class BuyerServiceImpl implements BuyerService {
             resp.setSpec(p.getSpec());
             resp.setUnit(p.getUnit());
             resp.setPrice(p.getPrice());
-            // costPrice 不返回给买家
-            resp.setStock(p.getStock());
+            // 库存策略：<=0 缺货, <=阈值 展示精确数量, >阈值 只显示"有货"
+            int stock = p.getStock() != null ? p.getStock() : 0;
+            if (stock <= 0) {
+                resp.setStockStatus("OUT_OF_STOCK");
+                resp.setStock(0);
+            } else if (stock <= BUYER_LOW_STOCK_THRESHOLD) {
+                resp.setStockStatus("LOW_STOCK");
+                resp.setStock(stock);
+            } else {
+                resp.setStockStatus("IN_STOCK");
+                resp.setStock(null); // 不暴露精确数量
+            }
             resp.setImages(p.getImages());
+            // 主图：images 列表第一张，供列表卡片展示
+            resp.setMainImage(p.getImages() != null && !p.getImages().isEmpty() ? p.getImages().get(0) : null);
             resp.setCategoryId(p.getCategoryId());
             resp.setStatus(p.getStatus());
             return resp;
@@ -140,9 +192,21 @@ public class BuyerServiceImpl implements BuyerService {
         result.put("spec", product.getSpec());
         result.put("unit", product.getUnit());
         result.put("price", product.getPrice());
-        result.put("stock", product.getStock());
+        int detailStock = product.getStock() != null ? product.getStock() : 0;
+        if (detailStock <= 0) {
+            result.put("stockStatus", "OUT_OF_STOCK");
+            result.put("stock", 0);
+        } else if (detailStock <= BUYER_LOW_STOCK_THRESHOLD) {
+            result.put("stockStatus", "LOW_STOCK");
+            result.put("stock", detailStock);
+        } else {
+            result.put("stockStatus", "IN_STOCK");
+        }
         result.put("images", product.getImages());
+        result.put("mainImage", product.getImages() != null && !product.getImages().isEmpty() ? product.getImages().get(0) : null);
         result.put("enterpriseName", enterprise != null ? enterprise.getName() : "");
+        result.put("qrcodeImage", product.getQrcodeImage());
+        result.put("description", product.getDescription() != null ? product.getDescription() : "");
         return result;
     }
 
@@ -175,14 +239,8 @@ public class BuyerServiceImpl implements BuyerService {
             }
         }
 
-        // 生成订单号（Redis 原子自增）
-        String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String redisKey = "order:no:" + OrderConstants.SALES_ORDER_PREFIX + ":" + enterpriseId + ":" + dateStr;
-        Long seq = redisTemplate.opsForValue().increment(redisKey);
-        if (seq != null && seq == 1) {
-            redisTemplate.expire(redisKey, 2, TimeUnit.DAYS);
-        }
-        String orderNo = OrderConstants.SALES_ORDER_PREFIX + dateStr + String.format("%04d", seq);
+        // 生成订单号（Redis 优先，DB 降级）
+        String orderNo = orderNoGenerator.generate(OrderConstants.SALES_ORDER_PREFIX, enterpriseId, "oms_sales_order");
 
         // 创建订单
         OmsSalesOrder order = new OmsSalesOrder();
@@ -191,12 +249,15 @@ public class BuyerServiceImpl implements BuyerService {
         order.setCustomerId(customer != null ? customer.getId() : null);
         order.setStatus(OrderConstants.SALES_PENDING);
         order.setPaymentStatus(OrderConstants.PAY_UNPAID);
+        order.setDeliveryAddress(request.getAddress());
         order.setRemark(request.getRemark());
+        order.setOrderSource(OrderConstants.ORDER_SOURCE_BUYER);
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal totalCost = BigDecimal.ZERO;
         BigDecimal totalProfit = BigDecimal.ZERO;
 
+        Map<Long, Integer> prevStocks = new HashMap<>();
         List<OmsSalesOrderItem> items = new ArrayList<>();
         for (BuyerOrderRequest.BuyerItemRequest itemReq : request.getItems()) {
             PmsProduct product = productMapper.selectById(itemReq.getProductId());
@@ -205,7 +266,10 @@ public class BuyerServiceImpl implements BuyerService {
                 throw new BusinessException(ResultCode.NOT_FOUND.getCode(),
                         "商品不存在或已下架: ID=" + itemReq.getProductId());
             }
-            if (product.getStock() < itemReq.getQuantity()) {
+            prevStocks.put(product.getId(), product.getStock());
+            // 原子扣减库存（乐观锁 — adjustStock 使用 WHERE stock >= quantity 保证并发安全）
+            int affected = productMapper.adjustStock(itemReq.getProductId(), -itemReq.getQuantity());
+            if (affected == 0) {
                 throw new BusinessException(ResultCode.STOCK_INSUFFICIENT.getCode(),
                         "商品 [" + product.getName() + "] 库存不足");
             }
@@ -217,17 +281,18 @@ public class BuyerServiceImpl implements BuyerService {
             item.setUnit(product.getUnit());
             item.setQuantity(itemReq.getQuantity());
             item.setPrice(product.getPrice());
-            item.setCostPrice(product.getCostPrice());
+            BigDecimal costPrice = product.getCostPrice() != null ? product.getCostPrice() : BigDecimal.ZERO;
+            item.setCostPrice(costPrice);
 
             BigDecimal amount = product.getPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity()));
-            BigDecimal profit = product.getPrice().subtract(product.getCostPrice())
+            BigDecimal profit = product.getPrice().subtract(costPrice)
                     .multiply(BigDecimal.valueOf(itemReq.getQuantity()));
 
             item.setAmount(amount);
             item.setProfit(profit);
 
             totalAmount = totalAmount.add(amount);
-            totalCost = totalCost.add(product.getCostPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity())));
+            totalCost = totalCost.add(costPrice.multiply(BigDecimal.valueOf(itemReq.getQuantity())));
             totalProfit = totalProfit.add(profit);
 
             items.add(item);
@@ -241,6 +306,21 @@ public class BuyerServiceImpl implements BuyerService {
         for (OmsSalesOrderItem item : items) {
             item.setOrderId(order.getId());
             salesOrderItemMapper.insert(item);
+        }
+
+        // 买家下单后异步检查库存预警（事务提交后触发，避免读到旧数据）
+        if (!prevStocks.isEmpty()) {
+            final Long eid = enterpriseId;
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        notificationService.checkAndNotify(prevStocks, eid);
+                    }
+                });
+            } else {
+                notificationService.checkAndNotify(prevStocks, enterpriseId);
+            }
         }
 
         return toOrderResponse(order, customer);
@@ -262,6 +342,25 @@ public class BuyerServiceImpl implements BuyerService {
         }
 
         order.setPaymentStatus(OrderConstants.PAY_PAID);
+        salesOrderMapper.updateById(order);
+    }
+
+    @Override
+    @Transactional
+    public void claimPaid(Long buyerUserId, Long orderId) {
+        OmsSalesOrder order = salesOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND);
+        }
+
+        validateBuyerOrder(buyerUserId, order);
+
+        // 只允许 UNPAID 状态声明已付款
+        if (!OrderConstants.PAY_UNPAID.equals(order.getPaymentStatus())) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "仅未付款状态可声明已付款");
+        }
+
+        order.setPaymentStatus(OrderConstants.PAY_CLAIMED);
         salesOrderMapper.updateById(order);
     }
 
@@ -295,8 +394,30 @@ public class BuyerServiceImpl implements BuyerService {
         Page<OmsSalesOrder> page = salesOrderMapper.selectPage(
                 new Page<>(pageNum, pageSize), wrapper);
 
-        List<SalesOrderResponse> records = page.getRecords().stream()
-                .map(o -> toOrderResponse(o, null)).toList();
+        List<OmsSalesOrder> orders = page.getRecords();
+        if (orders.isEmpty()) {
+            return PageResponse.of(Collections.emptyList(), page.getTotal(), pageNum, pageSize);
+        }
+
+        // 批量预加载订单明细（消除 N+1）
+        List<Long> orderIds = orders.stream().map(OmsSalesOrder::getId).toList();
+        Map<Long, List<OmsSalesOrderItem>> itemsByOrderId = salesOrderItemMapper.selectList(
+                new LambdaQueryWrapper<OmsSalesOrderItem>()
+                        .in(OmsSalesOrderItem::getOrderId, orderIds))
+                .stream().collect(java.util.stream.Collectors.groupingBy(OmsSalesOrderItem::getOrderId));
+
+        // 批量预加载客户信息
+        Set<Long> custIds = orders.stream()
+                .map(OmsSalesOrder::getCustomerId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<Long, CrmCustomer> customerMap = custIds.isEmpty()
+                ? Collections.emptyMap()
+                : customerMapper.selectBatchIds(custIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(CrmCustomer::getId, c -> c));
+
+        List<SalesOrderResponse> records = orders.stream()
+                .map(o -> toBuyerOrderResponse(o, customerMap, itemsByOrderId)).toList();
 
         return PageResponse.of(records, page.getTotal(), pageNum, pageSize);
     }
@@ -309,6 +430,52 @@ public class BuyerServiceImpl implements BuyerService {
         }
         validateBuyerOrder(buyerUserId, order);
         return toOrderResponse(order, null);
+    }
+
+    @Override
+    @Transactional
+    public void cancelOrder(Long buyerUserId, Long orderId) {
+        OmsSalesOrder order = salesOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND);
+        }
+        validateBuyerOrder(buyerUserId, order);
+
+        // 只有 PENDING 状态才允许买家取消
+        if (!OrderConstants.SALES_PENDING.equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "仅待确认状态的订单可取消");
+        }
+
+        // 恢复库存
+        List<OmsSalesOrderItem> items = salesOrderItemMapper.selectList(
+                new LambdaQueryWrapper<OmsSalesOrderItem>()
+                        .eq(OmsSalesOrderItem::getOrderId, orderId));
+        List<Long> restoredIds = new ArrayList<>();
+        for (OmsSalesOrderItem item : items) {
+            productMapper.adjustStock(item.getProductId(), item.getQuantity());
+            restoredIds.add(item.getProductId());
+        }
+
+        // 库存恢复后清除预警去重 key，确保下次再跌破阈值时能重新通知
+        if (!restoredIds.isEmpty()) {
+            final Long eid = order.getEnterpriseId();
+            final List<Long> pids = restoredIds;
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        notificationService.clearDedupOnRestock(pids, eid);
+                    }
+                });
+            } else {
+                notificationService.clearDedupOnRestock(pids, eid);
+            }
+        }
+
+        order.setCancelBy(OrderConstants.CANCEL_BY_BUYER);
+        order.setStatus(OrderConstants.SALES_CANCELLED);
+        order.setRemark((order.getRemark() != null ? order.getRemark() + " | " : "") + "买家主动取消");
+        salesOrderMapper.updateById(order);
     }
 
     // ===================== 私有方法 =====================
@@ -335,11 +502,15 @@ public class BuyerServiceImpl implements BuyerService {
     private SalesOrderResponse toOrderResponse(OmsSalesOrder order, CrmCustomer customer) {
         SalesOrderResponse resp = new SalesOrderResponse();
         resp.setId(order.getId());
+        resp.setEnterpriseId(order.getEnterpriseId());
         resp.setOrderNo(order.getOrderNo());
         resp.setStatus(order.getStatus());
         resp.setPaymentStatus(order.getPaymentStatus());
         resp.setTotalAmount(order.getTotalAmount());
+        resp.setDeliveryAddress(order.getDeliveryAddress());
         resp.setRemark(order.getRemark());
+        resp.setOrderSource(order.getOrderSource());
+        resp.setCancelBy(order.getCancelBy());
         resp.setCreatedAt(order.getCreatedAt());
         // 买家端不返回利润信息
         resp.setTotalCost(null);
@@ -371,6 +542,53 @@ public class BuyerServiceImpl implements BuyerService {
             info.setQuantity(item.getQuantity());
             info.setPrice(item.getPrice());
             // 买家端不返回成本价和利润
+            info.setAmount(item.getAmount());
+            return info;
+        }).toList();
+
+        resp.setItems(itemInfos);
+        return resp;
+    }
+
+    /** 批量预加载版本（消除 N+1） */
+    private SalesOrderResponse toBuyerOrderResponse(OmsSalesOrder order,
+                                                     Map<Long, CrmCustomer> customerMap,
+                                                     Map<Long, List<OmsSalesOrderItem>> itemsByOrderId) {
+        SalesOrderResponse resp = new SalesOrderResponse();
+        resp.setId(order.getId());
+        resp.setEnterpriseId(order.getEnterpriseId());
+        resp.setOrderNo(order.getOrderNo());
+        resp.setStatus(order.getStatus());
+        resp.setPaymentStatus(order.getPaymentStatus());
+        resp.setTotalAmount(order.getTotalAmount());
+        resp.setDeliveryAddress(order.getDeliveryAddress());
+        resp.setRemark(order.getRemark());
+        resp.setOrderSource(order.getOrderSource());
+        resp.setCancelBy(order.getCancelBy());
+        resp.setCreatedAt(order.getCreatedAt());
+        resp.setTotalCost(null);
+        resp.setTotalProfit(null);
+
+        if (order.getCustomerId() != null) {
+            CrmCustomer customer = customerMap.get(order.getCustomerId());
+            if (customer != null) {
+                SalesOrderResponse.CustomerInfo ci = new SalesOrderResponse.CustomerInfo();
+                ci.setId(customer.getId());
+                ci.setName(customer.getName());
+                ci.setPhone(customer.getPhone());
+                resp.setCustomer(ci);
+            }
+        }
+
+        List<OmsSalesOrderItem> items = itemsByOrderId.getOrDefault(order.getId(), Collections.emptyList());
+        List<SalesOrderResponse.OrderItemInfo> itemInfos = items.stream().map(item -> {
+            SalesOrderResponse.OrderItemInfo info = new SalesOrderResponse.OrderItemInfo();
+            info.setProductId(item.getProductId());
+            info.setProductName(item.getProductName());
+            info.setSpec(item.getSpec());
+            info.setUnit(item.getUnit());
+            info.setQuantity(item.getQuantity());
+            info.setPrice(item.getPrice());
             info.setAmount(item.getAmount());
             return info;
         }).toList();

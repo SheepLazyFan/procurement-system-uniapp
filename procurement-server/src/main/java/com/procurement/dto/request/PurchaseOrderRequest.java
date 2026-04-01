@@ -38,7 +38,7 @@ public class PurchaseOrderRequest implements Serializable {
         private Integer quantity;
 
         @NotNull(message = "采购单价不能为空")
-        @DecimalMin(value = "0.00", message = "采购单价不能为负数")
+        @DecimalMin(value = "0.01", message = "采购单价必须大于0")
         private BigDecimal price;
     }
 }

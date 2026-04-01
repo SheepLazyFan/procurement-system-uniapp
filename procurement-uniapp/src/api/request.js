@@ -5,13 +5,13 @@
  * - 请求/响应拦截
  */
 
-// 后端 API 基础地址（开发环境）
-const BASE_URL = 'http://localhost:8080/api'
+// 后端 API 基础地址（编译时由 vite.config.js define 注入，区分 dev/prod 环境）
+// dev:  .env.development → http://127.0.0.1:8080/api
+// prod: .env.production  → http://106.52.136.176:8080/api（上线后换域名/HTTPS）
+const BASE_URL = typeof __API_BASE__ !== 'undefined' ? __API_BASE__ : 'http://127.0.0.1:8080/api'
 
 // 无需 token 的白名单路径
 const WHITE_LIST = [
-  '/auth/sms/send',
-  '/auth/login',
   '/auth/wx-login',
   '/buyer/store',
   '/buyer/product'
@@ -57,18 +57,33 @@ function request(options = {}) {
       ...header
     }
 
-    // 自动注入 JWT token
+    // 自动注入 JWT token；非白名单接口无 token 时直接静默跳过请求
     if (!isWhiteListed(url)) {
       const token = uni.getStorageSync('token')
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
+      } else {
+        // 未登录状态下请求需鉴权的接口，直接静默拒绝，不发请求
+        if (showLoading) uni.hideLoading()
+        return reject({ code: 40100, message: '未登录', silent: true })
       }
+    }
+
+    // GET 请求时过滤掉 null / undefined / '' 参数，防止后端解析错误
+    let requestData = data
+    if (method === 'GET' && data && typeof data === 'object') {
+      requestData = {}
+      Object.keys(data).forEach(k => {
+        if (data[k] !== null && data[k] !== undefined && data[k] !== '') {
+          requestData[k] = data[k]
+        }
+      })
     }
 
     uni.request({
       url: `${BASE_URL}${url}`,
       method,
-      data,
+      data: requestData,
       header: headers,
       timeout: 15000,
       success: (res) => {
@@ -121,7 +136,46 @@ function request(options = {}) {
 /**
  * 处理业务错误
  */
+let isRefreshingToken = false
 function handleBusinessError(body, showError) {
+  const token = uni.getStorageSync('token')
+  // 未登录状态下的权限错误静默处理
+  if (!token && (body.code === 40100 || body.code === 40300)) {
+    return
+  }
+  // Token 过期：自动尝试静默重新登录（防止并发多次刷新）
+  if (token && body.code === 40100) {
+    // 正在刷新中的并发请求，静默忽略
+    if (isRefreshingToken) return
+    isRefreshingToken = true
+    import('@/store/user').then(({ useUserStore }) => {
+      const userStore = useUserStore()
+      return userStore.silentWxLogin()
+    }).then(() => {
+      isRefreshingToken = false
+      // 刷新当前页面以重新发起请求
+      const pages = getCurrentPages()
+      if (pages.length > 0) {
+        const current = pages[pages.length - 1]
+        const route = '/' + current.route
+        uni.reLaunch({ url: route })
+      }
+    }).catch(() => {
+      isRefreshingToken = false
+      uni.removeStorageSync('token')
+      uni.removeStorageSync('userInfo')
+      uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+      // 自动重新登录失败时跳转到登录页
+      setTimeout(() => {
+        uni.reLaunch({ url: '/pages/auth/login' })
+      }, 1500)
+    })
+    return
+  }
+  // 未创建/加入企业错误静默处理（由页面自行展示提示）
+  if (body.code === 40402) {
+    return
+  }
   if (showError) {
     uni.showToast({
       title: body.message || '操作失败',
@@ -135,6 +189,9 @@ function handleBusinessError(body, showError) {
  * 处理 401 未授权
  */
 function handleUnauthorized() {
+  const token = uni.getStorageSync('token')
+  // 如果本来就没有 token（未登录状态），静默处理，不弹窗不跳转
+  if (!token) return
   uni.removeStorageSync('token')
   uni.removeStorageSync('userInfo')
   uni.showToast({
@@ -167,7 +224,14 @@ export function uploadFile(filePath, url = '/files/upload', formData = {}) {
       },
       success: (res) => {
         if (res.statusCode === 200) {
-          const body = JSON.parse(res.data)
+          let body
+          try {
+            body = JSON.parse(res.data)
+          } catch (parseErr) {
+            uni.showToast({ title: '响应解析失败', icon: 'none' })
+            reject({ code: -1, message: '响应解析失败' })
+            return
+          }
           if (body.code === 200) {
             resolve(body.data)
           } else {
@@ -187,6 +251,29 @@ export function uploadFile(filePath, url = '/files/upload', formData = {}) {
   })
 }
 
+/**
+ * 文件下载封装 — 适用于需要鉴权的文件下载
+ * @param {string} url - 下载接口路径（不含 BASE_URL）
+ * @returns {Promise<string>} 临时文件路径
+ */
+export function downloadFile(url) {
+  return new Promise((resolve, reject) => {
+    const token = uni.getStorageSync('token')
+    uni.downloadFile({
+      url: `${BASE_URL}${url}`,
+      header: { Authorization: token ? `Bearer ${token}` : '' },
+      success: (res) => {
+        if (res.statusCode === 200) {
+          resolve(res.tempFilePath)
+        } else {
+          reject(new Error('下载失败'))
+        }
+      },
+      fail: reject
+    })
+  })
+}
+
 // 便捷方法
 export const get = (url, data, options = {}) =>
   request({ url, method: 'GET', data, ...options })
@@ -199,5 +286,15 @@ export const put = (url, data, options = {}) =>
 
 export const del = (url, data, options = {}) =>
   request({ url, method: 'DELETE', data, ...options })
+
+/**
+ * 将后端返回的文件相对路径转为完整可访问 URL
+ * 兼容：已有完整 URL（http 开头）直接返回；相对路径自动拼接 BASE_URL
+ */
+export function fileUrl(path) {
+  if (!path) return ''
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  return BASE_URL + path
+}
 
 export default request

@@ -4,6 +4,9 @@ import com.procurement.dto.request.SalesOrderRequest;
 import com.procurement.dto.response.PageResponse;
 import com.procurement.dto.response.SalesOrderResponse;
 
+import java.math.BigDecimal;
+import java.util.Map;
+
 /**
  * 销售订单服务接口
  */
@@ -14,7 +17,16 @@ public interface SalesOrderService {
      */
     PageResponse<SalesOrderResponse> listByPage(Long enterpriseId, Integer pageNum, Integer pageSize,
                                                  String status, String paymentStatus,
-                                                 Long customerId, String startDate, String endDate);
+                                                 Long customerId, String keyword,
+                                                 String startDate, String endDate,
+                                                 BigDecimal minAmount, BigDecimal maxAmount, String sortBy);
+
+    /**
+     * 各状态订单数量（含筛选条件）
+     */
+    Map<String, Long> countByStatus(Long enterpriseId, String keyword, String startDate, String endDate,
+                                     BigDecimal minAmount, BigDecimal maxAmount,
+                                     Long customerId, String paymentStatus);
 
     /**
      * 获取订单详情
@@ -44,7 +56,7 @@ public interface SalesOrderService {
     /**
      * 取消订单（已扣减库存则恢复）
      */
-    void cancel(Long enterpriseId, Long id);
+    void cancel(Long enterpriseId, Long id, String callerMemberRole);
 
     /**
      * 标记已支付（伪支付）

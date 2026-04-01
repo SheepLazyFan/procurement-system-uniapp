@@ -20,6 +20,9 @@ public class SalesOrderRequest implements Serializable {
     @Valid
     private List<OrderItemRequest> items;
 
+    @Size(max = 300, message = "收货地址最长300字符")
+    private String deliveryAddress;
+
     @Size(max = 500, message = "备注最长500字符")
     private String remark;
 

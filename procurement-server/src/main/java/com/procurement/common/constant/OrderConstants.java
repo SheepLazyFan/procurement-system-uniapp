@@ -15,10 +15,22 @@ public final class OrderConstants {
     public static final String SALES_CANCELLED  = "CANCELLED";
 
     // ==================== 支付状态 ====================
-    public static final String PAY_UNPAID = "UNPAID";
-    public static final String PAY_PAID   = "PAID";
+    public static final String PAY_UNPAID   = "UNPAID";
+    public static final String PAY_CLAIMED  = "CLAIMED";   // 买家已声明付款，等待商家确认
+    public static final String PAY_PAID     = "PAID";
+
+    // ==================== 订单来源 ====================
+    public static final String ORDER_SOURCE_BUYER    = "BUYER";
+    public static final String ORDER_SOURCE_MERCHANT = "MERCHANT";
+
+    // ==================== 取消操作方 ====================
+    public static final String CANCEL_BY_BUYER    = "BUYER";
+    public static final String CANCEL_BY_MERCHANT = "MERCHANT";
+    public static final String CANCEL_BY_SALES    = "SALES";
+    public static final String CANCEL_BY_SYSTEM   = "SYSTEM";
 
     // ==================== 采购订单状态 ====================
+    public static final String PURCHASE_DRAFT       = "DRAFT";
     public static final String PURCHASE_PENDING     = "PENDING";
     public static final String PURCHASE_PURCHASING  = "PURCHASING";
     public static final String PURCHASE_ARRIVED     = "ARRIVED";

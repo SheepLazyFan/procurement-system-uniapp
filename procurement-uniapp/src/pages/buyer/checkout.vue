@@ -40,7 +40,7 @@
 
     <!-- 提交按钮 -->
     <button class="btn-primary" @tap="handleSubmit" :loading="submitting">
-      {{ submitting ? '提交中...' : '提交订单' }}
+      {{ submitting ? '支付中...' : '确认支付' }}
     </button>
   </view>
 </template>
@@ -56,20 +56,60 @@ export default {
   data() {
     return {
       enterpriseId: '',
+      /** 非 null 时为立即购买模式，直接用此商品结算，不读取/清空购物车 */
+      buyNowItem: null,
       form: { contactName: '', contactPhone: '', address: '', remark: '' },
       submitting: false
     }
   },
   computed: {
-    cartItems() { return useCartStore().items },
-    totalAmount() { return useCartStore().totalAmount }
+    cartItems() {
+      return this.buyNowItem ? [this.buyNowItem] : useCartStore().items
+    },
+    totalAmount() {
+      return this.buyNowItem
+        ? Number(this.buyNowItem.price || 0) * this.buyNowItem.quantity
+        : useCartStore().totalAmount
+    }
   },
   onLoad(query) {
     this.enterpriseId = query.enterpriseId || ''
-    // 预填用户信息
-    const user = useUserStore().userInfo
-    if (user.phone) this.form.contactPhone = user.phone
-    if (user.nickName) this.form.contactName = user.nickName
+
+    // 立即购买模式：读取暂存商品，读后立即删除，避免二次误用
+    if (query.buyNow === '1') {
+      const item = uni.getStorageSync('buyNowItem')
+      if (item && item.productId) {
+        this.buyNowItem = item
+      }
+      uni.removeStorageSync('buyNowItem')
+    }
+
+    // 登录检查
+    const userStore = useUserStore()
+    if (!userStore.isLoggedIn) {
+      uni.showModal({
+        title: '请先登录',
+        content: '下单需要登录账号',
+        showCancel: false,
+        success: () => {
+          uni.navigateTo({ url: '/pages/auth/login' })
+        }
+      })
+      return
+    }
+
+    // 还原上次填写的收货地址
+    const savedAddr = uni.getStorageSync('buyerAddress')
+    if (savedAddr) {
+      this.form.contactName = savedAddr.contactName || ''
+      this.form.contactPhone = savedAddr.contactPhone || ''
+      this.form.address = savedAddr.address || ''
+    } else {
+      // 首次使用：预填用户信息
+      const user = userStore.userInfo
+      if (user.phone) this.form.contactPhone = user.phone
+      if (user.nickName) this.form.contactName = user.nickName
+    }
   },
   methods: {
     async handleSubmit() {
@@ -92,11 +132,23 @@ export default {
           }))
         }
         const res = await createBuyerOrder(orderData)
-        // 清空购物车
-        useCartStore().clearCart()
+
+        // 保存本次收货地址，下次自动填充
+        uni.setStorageSync('buyerAddress', {
+          contactName: this.form.contactName,
+          contactPhone: this.form.contactPhone,
+          address: this.form.address
+        })
+
+        // 先记录金额，再清购物车（清空后 totalAmount 会变 0）
+        const finalAmount = this.totalAmount
+        // 立即购买模式不清空购物车，购物车模式才清
+        if (!this.buyNowItem) {
+          useCartStore().clearCart()
+        }
         // 跳转支付成功页
         uni.redirectTo({
-          url: `/pages/buyer/pay-success?orderId=${res.data?.id || ''}&amount=${this.totalAmount.toFixed(2)}`
+          url: `/pages/buyer/pay-success?orderId=${res?.id || ''}&amount=${finalAmount.toFixed(2)}&enterpriseId=${this.enterpriseId}`
         })
       } catch (e) {
         uni.showToast({ title: e.message || '提交失败', icon: 'none' })

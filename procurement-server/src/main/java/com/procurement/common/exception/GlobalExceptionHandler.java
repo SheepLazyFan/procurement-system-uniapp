@@ -79,6 +79,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 日期格式错误 — LocalDate.parse() 等接收到非法日期格式
+     */
+    @ExceptionHandler(java.time.format.DateTimeParseException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public R<Void> handleDateTimeParse(java.time.format.DateTimeParseException e) {
+        log.warn("日期格式错误: {}", e.getMessage());
+        return R.fail(ResultCode.PARAM_ERROR, "日期格式错误，请使用 yyyy-MM-dd 格式");
+    }
+
+    /**
+     * 数字格式错误
+     */
+    @ExceptionHandler(NumberFormatException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public R<Void> handleNumberFormat(NumberFormatException e) {
+        log.warn("数字格式错误: {}", e.getMessage());
+        return R.fail(ResultCode.PARAM_ERROR, "数字格式错误");
+    }
+
+    /**
      * 兜底：未知异常
      */
     @ExceptionHandler(Exception.class)

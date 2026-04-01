@@ -18,3 +18,7 @@ export const updateEnterprise = (data) =>
 /** 刷新邀请码 */
 export const refreshInviteCode = () =>
   put('/enterprise/invite-code/refresh')
+
+/** 获取团队成员列表（含店主） */
+export const getTeamMembers = () =>
+  get('/team/members')

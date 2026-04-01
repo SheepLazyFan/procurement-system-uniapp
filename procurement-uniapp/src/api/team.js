@@ -11,9 +11,9 @@ export const getTeamMembers = () =>
 export const joinByInviteCode = (inviteCode) =>
   post('/team/join', { inviteCode })
 
-/** 设置成员权限 */
-export const setMemberPermissions = (id, permissions) =>
-  put(`/team/members/${id}/permissions`, { permissions })
+/** 设置成员角色 */
+export const setMemberPermissions = (id, data) =>
+  put(`/team/members/${id}/permissions`, data)
 
 /** 移除团队成员 */
 export const removeMember = (id) =>
