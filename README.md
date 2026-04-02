@@ -163,4 +163,4 @@ cd procurement-server
 
 ## License
 
-Private — 未经授权不得使用、复制或分发。
+有意者或疑问者，联系作者：2529174839@qq.com
