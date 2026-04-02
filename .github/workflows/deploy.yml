@@ -7,13 +7,13 @@ name: CI - Test
 on:
   push:
     branches:
-      - 'appmod/java-upgrade-20260302-001'
+      - 'main'
     paths:
       - 'procurement-server/**'
       - '.github/workflows/**'
   pull_request:
     branches:
-      - 'appmod/java-upgrade-20260302-001'
+      - 'main'
   workflow_dispatch:
 
 jobs:
