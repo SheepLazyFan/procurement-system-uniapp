@@ -52,7 +52,7 @@ dist/dev/mp-weixin
 
 | 文件 | 用途 | 内容 |
 |------|------|------|
-| `.env.development` | 开发/调试 | `VITE_API_BASE=http://106.52.136.176:8080/api` |
+| `.env.development` | 开发/调试 | `VITE_API_BASE=http://your-server-ip:8080/api` |
 | `.env.production` | 生产构建 | `VITE_API_BASE=https://your-domain.com/api` |
 
 > ⚠️ **上线前**必须将 `.env.production` 中的 `VITE_API_BASE` 改为 HTTPS 域名。

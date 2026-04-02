@@ -8,7 +8,7 @@
  *   T-11: SALES     → 403 (拒绝)
  *
  * 运行方式：node test-adjust-stock-rbac.mjs [baseUrl]
- * 默认 baseUrl: http://106.52.136.176:8082
+ * 默认 baseUrl: http://your-server-ip:8082
  *
  * 依赖：Node.js 18+（内置 fetch、crypto）
  */
@@ -16,8 +16,8 @@
 import crypto from 'crypto';
 
 // ======================== 配置 ========================
-const BASE_URL = process.argv[2] || 'http://106.52.136.176:8082';
-const JWT_SECRET = 'f5d97624d90bd4489b3b345a89af218e0ed389952959bd590614e304da8e2559';
+const BASE_URL = process.argv[2] || 'http://your-server-ip:8082';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-key-NEVER-use-in-production';
 const ENTERPRISE_ID = 1;
 const PRODUCT_ID = 1; // 用一个真实存在的商品ID
 

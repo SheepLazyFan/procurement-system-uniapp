@@ -7,7 +7,7 @@
 
 // 后端 API 基础地址（编译时由 vite.config.js define 注入，区分 dev/prod 环境）
 // dev:  .env.development → http://127.0.0.1:8080/api
-// prod: .env.production  → http://106.52.136.176:8080/api（上线后换域名/HTTPS）
+// prod: .env.production  → http://your-server-ip:8080/api（上线后换域名/HTTPS）
 const BASE_URL = typeof __API_BASE__ !== 'undefined' ? __API_BASE__ : 'http://127.0.0.1:8080/api'
 
 // 无需 token 的白名单路径

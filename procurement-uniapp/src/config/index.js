@@ -7,4 +7,4 @@
 // ===== 微信订阅消息模板 ID =====
 // 库存预警通知（模板编号 26427：商品调仓通知）
 // 字段：thing1（商品名）/ number2（当前库存）/ number3（预警阈值）/ time4（提醒时间）
-export const WX_STOCK_WARNING_TEMPLATE_ID = 'ksHY5ef8GtwgegfA3Jz5Mab1vbjxghfitGlsMi1fzWc'
+export const WX_STOCK_WARNING_TEMPLATE_ID = 'your_template_id'

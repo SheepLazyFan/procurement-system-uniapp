@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # ---- 配置区（按需修改） ----
-SERVER="root@106.52.136.176"
+SERVER="root@your-server-ip"
 DEPLOY_DIR="/opt/procurement"
 JAR_NAME="procurement-server-1.0.0.jar"
 SERVICE_NAME="procurement"
@@ -68,15 +68,15 @@ cat > "$ENV_FILE" <<ENV
 JWT_SECRET=${JWT_SECRET_VAL}
 
 # 微信小程序凭据（替换为正式凭据）
-WX_APP_ID=wxb0ddba593d8a2497
-WX_APP_SECRET=9d7e49f2ae110dcfde12c9c515efb37f
+WX_APP_ID=your_wx_app_id
+WX_APP_SECRET=your_wx_app_secret
 
 # 微信订阅消息模板 ID
-WX_STOCK_WARNING_TEMPLATE_ID=ksHY5ef8GtwgegfA3Jz5Mab1vbjxghfitGlsMi1fzWc
+WX_STOCK_WARNING_TEMPLATE_ID=your_template_id
 WX_BACKUP_ALERT_TEMPLATE_ID=
 
 # 数据库密码
-DB_PASSWORD=Proc2026secure
+DB_PASSWORD=your_mysql_password
 
 # Redis 密码（无密码留空）
 REDIS_PASSWORD=
@@ -219,5 +219,5 @@ info "======================================"
 info "✅ 部署完成！${JAR_NAME}"
 info "   服务器：${SERVER}"
 info "   日志：${DEPLOY_DIR}/logs/app.log"
-info "   API：http://106.52.136.176:8080/api"
+info "   API: http://your-server-ip:8080/api"
 info "======================================"

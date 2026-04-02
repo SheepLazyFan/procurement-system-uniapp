@@ -97,7 +97,7 @@
 </template>
 
 <script>
-const BASE_URL = 'http://106.52.136.176:8080/api'
+const BASE_URL = import.meta.env.VITE_API_BASE || 'http://your-server-ip:8080/api'
 
 export default {
   data() {

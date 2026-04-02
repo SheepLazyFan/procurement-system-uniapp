@@ -32,7 +32,7 @@ public class StatisticsController {
 
     /**
      * 部署验证端点 — 浏览器直接访问即可确认 JAR 版本
-     * 访问：http://106.52.136.176:8080/api/statistics/version
+     * 访问：http://your-server-ip:8080/api/statistics/version
      */
     @GetMapping("/version")
     public R<String> version() {
