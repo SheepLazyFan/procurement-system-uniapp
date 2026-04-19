@@ -33,7 +33,7 @@ public class CustomerResponse implements Serializable {
         private BigDecimal totalAmount;
         private String status;
         private String createdAt;
-        /** 付款状态：UNPAID/PAID */
+        /** 付款状态：UNPAID/CLAIMED/PAID */
         private String paymentStatus;
     }
 }

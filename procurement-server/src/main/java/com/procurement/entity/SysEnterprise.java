@@ -5,6 +5,8 @@ import com.procurement.common.base.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
+
 /**
  * 企业表实体
  */
@@ -36,4 +38,7 @@ public class SysEnterprise extends BaseEntity {
 
     /** 收款二维码图片 URL（买家扫码付款用） */
     private String paymentQrUrl;
+
+    /** 企业会话失效时间，恢复等高风险操作后用于让商家和员工重新登录 */
+    private LocalDateTime sessionInvalidAfter;
 }

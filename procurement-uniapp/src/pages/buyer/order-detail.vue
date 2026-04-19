@@ -1,170 +1,124 @@
 <template>
-  <view class="page-buyer-order-detail container">
-    <view class="card">
-      <view class="flex-between">
-        <text class="order-no">{{ order.orderNo }}</text>
-        <StatusTag :text="getStatusText(order.status)" :type="getStatusType(order.status)" />
+  <view class="page-order-detail">
+    <view class="container" v-if="order.id">
+      <!-- 状态头部 -->
+      <view class="status-header" :class="'status-header--' + order.status">
+        <StatusTag :status="order.status" :type="statusTagType(order.status)" />
+        <text class="status-header__text">{{ statusDesc }}</text>
       </view>
-      <view class="divider" />
-      <view class="info-row" v-if="order.status !== 'CANCELLED'">
-        <text class="info-label">支付状态</text>
-        <text class="info-value" :class="'pay-' + order.paymentStatus">{{ paymentStatusText(order.paymentStatus) }}</text>
-      </view>
-      <view class="info-row" v-if="order.deliveryAddress">
-        <text class="info-label">收货地址</text>
-        <text class="info-value">{{ order.deliveryAddress }}</text>
-      </view>
-      <view class="info-row">
-        <text class="info-label">下单时间</text>
-        <text class="info-value">{{ formatDateTime(order.createdAt) }}</text>
-      </view>
-      <view class="info-row" v-if="order.remark">
-        <text class="info-label">备注</text>
-        <text class="info-value">{{ order.remark }}</text>
-      </view>
-    </view>
 
-    <!-- 商品明细 -->
-    <view class="card">
-      <text class="section-title">商品明细</text>
-      <view v-for="item in order.items" :key="item.productId" class="item-row">
-        <view class="item-info">
-          <text class="item-name">{{ item.productName }}</text>
-          <text class="item-spec">{{ item.spec }} / {{ item.unit }}</text>
+      <!-- 订单信息 -->
+      <view class="detail-card">
+        <view class="detail-card__title">订单信息</view>
+        <view class="info-row">
+          <text class="info-row__label">订单号</text>
+          <text class="info-row__value">{{ order.orderNo }}</text>
         </view>
-        <view class="item-right">
-          <text class="item-qty">x{{ item.quantity }}</text>
-          <text class="item-amount">¥{{ item.amount }}</text>
+        <view class="info-row">
+          <text class="info-row__label">下单时间</text>
+          <text class="info-row__value">{{ formatDateTime(order.createdAt) }}</text>
+        </view>
+        <view class="info-row" v-if="order.contactName">
+          <text class="info-row__label">联系人</text>
+          <text class="info-row__value">{{ order.contactName }}</text>
+        </view>
+        <view class="info-row" v-if="order.contactPhone">
+          <text class="info-row__label">联系电话</text>
+          <text class="info-row__value">{{ order.contactPhone }}</text>
+        </view>
+        <view class="info-row" v-if="order.address">
+          <text class="info-row__label">收货地址</text>
+          <text class="info-row__value">{{ order.address }}</text>
+        </view>
+        <view class="info-row" v-if="order.remark">
+          <text class="info-row__label">备注</text>
+          <text class="info-row__value">{{ order.remark }}</text>
         </view>
       </view>
-      <view class="divider" />
-      <view class="total-row flex-between">
-        <text class="total-label">合计</text>
-        <text class="total-amount price-text">¥{{ order.totalAmount }}</text>
-      </view>
-    </view>
 
-    <!-- 操作按钮 -->
-    <view class="action-buttons" v-if="order.status">
-      <button v-if="order.paymentStatus === 'UNPAID' && order.status !== 'CANCELLED'" class="btn-primary" @tap="handlePay">去支付</button>
-      <button v-if="order.status === 'PENDING'" class="btn-cancel" @tap="handleCancel">取消订单</button>
+      <!-- 商品列表 -->
+      <view class="detail-card">
+        <view class="detail-card__title">商品明细</view>
+        <view v-for="item in order.items" :key="item.id" class="goods-line">
+          <text class="goods-line__name">{{ item.productName }}</text>
+          <text class="goods-line__qty">×{{ item.quantity }}</text>
+          <text class="goods-line__amount">￥{{ item.amount }}</text>
+        </view>
+        <view class="goods-total">
+          <text class="goods-total__label">合计</text>
+          <text class="goods-total__price">￥{{ order.totalAmount }}</text>
+        </view>
+      </view>
+
+      <!-- 操作按钮 -->
+      <view class="action-area">
+        <button v-if="order.paymentStatus === 'UNPAID' && order.status !== 'CANCELLED' && order.status !== 'COMPLETED'" class="btn-pay-action" hover-class="btn-pay-action--hover" @tap="handlePay">去支付</button>
+        <button v-if="order.status === 'PENDING' && order.paymentStatus === 'UNPAID'" class="btn-cancel-action" hover-class="btn-cancel-action--hover" @tap="handleCancel">取消订单</button>
+      </view>
     </view>
 
     <!-- 付款弹窗 -->
-    <view v-if="showPayPopup" class="pay-popup-mask" @tap.self="showPayPopup = false">
-      <view class="pay-popup">
-        <text class="pay-popup-title">扫码完成付款</text>
-        <text class="pay-popup-amount">应付：¥{{ order.totalAmount }}</text>
-        <view class="pay-qr-wrap">
-          <image v-if="storeQrUrl" :src="$fileUrl(storeQrUrl)" class="pay-qr-img" mode="aspectFit" show-menu-by-longpress />
-          <text v-else class="pay-qr-tip">商家暂未设置收款码，请联系商家</text>
-          <view v-if="storeQrUrl" class="qrcode-save-btn" hover-class="qrcode-save-btn--hover" @tap="savePayQrToAlbum">
-            <text class="qrcode-save-text">保存图片 · 用微信扫一扫</text>
-          </view>
-        </view>
-        <text class="pay-tip">请用微信/支付宝扫描商家收款码，付款后点击"我已付款"</text>
-        <button class="btn-claimed" @tap="handleClaimPaid">我已付款</button>
-        <button class="btn-close-popup" @tap="showPayPopup = false">稍后再付</button>
-      </view>
-    </view>
+    <PayQrPopup
+      :show="showPayPopup"
+      :amount="order.totalAmount"
+      :enterpriseId="order.enterpriseId"
+      :orderId="orderId"
+      @close="showPayPopup = false"
+      @paid="onPaySuccess"
+    />
   </view>
 </template>
 
 <script>
-import { getBuyerOrderDetail, claimBuyerOrderPaid, cancelBuyerOrder, getStoreInfo } from '@/api/buyer'
+import { getBuyerOrderDetail, cancelBuyerOrder } from '@/api/buyer'
 import { getSalesStatusText, formatDateTime } from '@/utils/format'
 import StatusTag from '@/components/common/StatusTag.vue'
+import PayQrPopup from '@/components/buyer/PayQrPopup.vue'
 
 export default {
-  components: { StatusTag },
+  components: { StatusTag, PayQrPopup },
   data() {
     return {
       orderId: null,
       order: { items: [] },
-      showPayPopup: false,
-      storeQrUrl: ''
+      showPayPopup: false
+    }
+  },
+  computed: {
+    statusDesc() {
+      const s = this.order.status
+      const p = this.order.paymentStatus
+      if (s === 'CANCELLED') return '订单已取消'
+      if (s === 'COMPLETED') return '交易完成'
+      if (p === 'UNPAID') return '等待买家付款'
+      if (p === 'CLAIMED') return '已声明付款，等待商家确认'
+      if (p === 'PAID') return '付款已确认'
+      return ''
     }
   },
   onLoad(query) {
-    this.orderId = Number(query.id)
+    this.orderId = query.id
     this.loadDetail()
   },
   methods: {
+    formatDateTime,
     async loadDetail() {
       try {
-        this.order = await getBuyerOrderDetail(this.orderId)
+        this.order = await getBuyerOrderDetail(this.orderId) || { items: [] }
       } catch (e) {
-        uni.showToast({ title: '加载订单失败', icon: 'none' })
+        uni.showToast({ title: '加载失败', icon: 'none' })
       }
     },
-    formatDateTime,
-    paymentStatusText(status) {
-      const map = { UNPAID: '待付款', CLAIMED: '待商家确认', PAID: '已付款' }
-      return map[status] || status
-    },
-    getStatusText(status) {
-      if (status === 'CANCELLED' && this.order.cancelBy === 'MERCHANT') return '商家已取消'
-      return getSalesStatusText(status)
-    },
-    getStatusType(status) {
+    statusTagType(status) {
       const map = { PENDING: 'warning', CONFIRMED: 'primary', SHIPPED: 'purple', COMPLETED: 'success', CANCELLED: 'danger' }
       return map[status] || 'info'
     },
-    async handlePay() {
-      this.storeQrUrl = ''
+    handlePay() {
       this.showPayPopup = true
-      if (this.order.enterpriseId) {
-        try {
-          const info = await getStoreInfo(this.order.enterpriseId)
-          this.storeQrUrl = info?.paymentQrUrl || ''
-        } catch (e) {
-          console.error('加载收款码失败', e)
-        }
-      }
     },
-    async handleClaimPaid() {
-      try {
-        await claimBuyerOrderPaid(this.orderId)
-        this.showPayPopup = false
-        uni.showToast({ title: '已提交，等待商家确认', icon: 'success' })
-        this.loadDetail()
-      } catch (e) {
-        uni.showToast({ title: e.message || '提交失败', icon: 'none' })
-      }
-    },
-    savePayQrToAlbum() {
-      if (!this.storeQrUrl) return
-      const url = this.$fileUrl(this.storeQrUrl)
-      uni.showLoading({ title: '保存中...' })
-      uni.downloadFile({
-        url,
-        success: (res) => {
-          if (res.statusCode === 200) {
-            uni.saveImageToPhotosAlbum({
-              filePath: res.tempFilePath,
-              success: () => {
-                uni.hideLoading()
-                uni.showModal({ title: '已保存到相册', content: '请打开微信「扫一扫」→ 右上角「相册」选择刚保存的收款码', showCancel: false, confirmText: '知道了' })
-              },
-              fail: (err) => {
-                uni.hideLoading()
-                if (err.errMsg && err.errMsg.includes('auth deny')) {
-                  uni.showModal({ title: '需要相册权限', content: '请在设置中允许保存图片到相册', confirmText: '去设置', success: (r) => { if (r.confirm) uni.openSetting() } })
-                } else {
-                  uni.showToast({ title: '保存失败', icon: 'none' })
-                }
-              }
-            })
-          } else {
-            uni.hideLoading()
-            uni.showToast({ title: '下载图片失败', icon: 'none' })
-          }
-        },
-        fail: () => {
-          uni.hideLoading()
-          uni.showToast({ title: '网络异常', icon: 'none' })
-        }
-      })
+    onPaySuccess() {
+      this.showPayPopup = false
+      this.loadDetail()
     },
     handleCancel() {
       uni.showModal({
@@ -188,117 +142,110 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.order-no { font-size: 30rpx; font-weight: 600; color: #333; }
-.section-title { font-size: 30rpx; font-weight: 600; margin-bottom: 20rpx; }
-.info-row { display: flex; justify-content: space-between; padding: 10rpx 0; }
-.info-label { font-size: 26rpx; color: #999; }
-.info-value {
-  font-size: 26rpx; color: #333;
-  &.pay-UNPAID { color: #fa8c16; }
-  &.pay-CLAIMED { color: #2979ff; }
-  &.pay-PAID { color: #52c41a; }
+.page-order-detail {
+  background: #f7f8fa;
+  min-height: 100vh;
 }
 
-.item-row {
+/* 状态头部 */
+.status-header {
+  display: flex;
+  align-items: center;
+  padding: 28rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  margin-bottom: 12rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.03);
+}
+.status-header__text {
+  font-size: 24rpx;
+  color: #888;
+  margin-left: 16rpx;
+}
+
+/* 详情卡片 */
+.detail-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 28rpx;
+  margin-bottom: 12rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.03);
+}
+.detail-card__title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 20rpx;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10rpx 0;
+}
+.info-row__label {
+  font-size: 24rpx;
+  color: #aaa;
+  flex-shrink: 0;
+  width: 140rpx;
+}
+.info-row__value {
+  font-size: 24rpx;
+  color: #333;
+  text-align: right;
+  flex: 1;
+  word-break: break-all;
+}
+.goods-line {
+  display: flex;
+  align-items: center;
+  padding: 10rpx 0;
+  border-bottom: 1rpx solid #f8f8f8;
+  &:last-child { border-bottom: none; }
+}
+.goods-line__name { flex: 1; font-size: 26rpx; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.goods-line__qty { font-size: 24rpx; color: #aaa; margin: 0 16rpx; }
+.goods-line__amount { font-size: 26rpx; color: #333; font-weight: 600; }
+.goods-total {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #f5f5f5;
+  padding-top: 20rpx;
+  margin-top: 8rpx;
+  border-top: 1rpx solid #f0f0f0;
 }
-.item-name { font-size: 28rpx; color: #333; }
-.item-spec { font-size: 24rpx; color: #999; }
-.item-right { text-align: right; }
-.item-qty { font-size: 26rpx; color: #666; display: block; }
-.item-amount { font-size: 26rpx; color: #333; font-weight: 500; }
+.goods-total__label { font-size: 28rpx; color: #1a1a1a; font-weight: 600; }
+.goods-total__price { font-size: 36rpx; color: #ff4d4f; font-weight: 700; }
 
-.total-row { padding: 8rpx 0; }
-.total-label { font-size: 28rpx; color: #333; font-weight: 600; }
-.total-amount { font-size: 36rpx; }
-
-.action-buttons { padding: 32rpx 0; }
-.btn-cancel {
-  margin-top: 16rpx;
-  height: 80rpx;
-  line-height: 80rpx;
-  text-align: center;
-  background: #f5f6fa;
-  border-radius: 12rpx;
-  color: #e43d33;
-  font-size: 28rpx;
-  border: none;
+/* 操作区 */
+.action-area {
+  margin-top: 8rpx;
 }
-
-/* 付款弹窗 */
-.pay-popup-mask {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 999;
-  display: flex;
-  align-items: flex-end;
-}
-.pay-popup {
+.btn-pay-action {
   width: 100%;
-  background: #fff;
-  border-radius: 24rpx 24rpx 0 0;
-  padding: 40rpx 32rpx 60rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20rpx;
-}
-.pay-popup-title { font-size: 34rpx; font-weight: 600; color: #333; }
-.pay-popup-amount { font-size: 40rpx; font-weight: 700; color: #ff4d4f; }
-.pay-qr-wrap {
-  width: 320rpx;
-  height: 320rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1rpx solid #eee;
-  border-radius: 12rpx;
-}
-.pay-qr-img { width: 300rpx; height: 300rpx; }
-.pay-qr-tip { font-size: 24rpx; color: #999; text-align: center; padding: 20rpx; }
-.pay-tip { font-size: 24rpx; color: #999; text-align: center; line-height: 1.6; }
-.btn-claimed {
-  width: 100%;
-  height: 88rpx;
-  line-height: 88rpx;
+  height: 84rpx;
+  line-height: 84rpx;
   background: #2979ff;
   color: #fff;
-  font-size: 32rpx;
-  border-radius: 44rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 42rpx;
   text-align: center;
   border: none;
+  letter-spacing: 2rpx;
 }
-.btn-close-popup {
+.btn-pay-action--hover { opacity: 0.85; }
+.btn-cancel-action {
   width: 100%;
   height: 80rpx;
   line-height: 80rpx;
-  background: #f5f5f5;
-  color: #666;
+  background: #fff;
+  color: #e43d33;
   font-size: 28rpx;
   border-radius: 40rpx;
   text-align: center;
-  border: none;
+  border: 1rpx solid #fde2e0;
+  margin-top: 16rpx;
 }
-.qrcode-save-btn {
-  margin-top: 20rpx;
-  padding: 18rpx 40rpx;
-  border: 1rpx solid #ddd;
-  border-radius: 40rpx;
-  text-align: center;
-  background: #fafafa;
-}
-.qrcode-save-btn--hover {
-  background: #f0f0f0;
-  border-color: #ccc;
-}
-.qrcode-save-text {
-  font-size: 24rpx;
-  color: #666;
-  letter-spacing: 1rpx;
-}
+.btn-cancel-action--hover { background: #fff5f5; }
 </style>

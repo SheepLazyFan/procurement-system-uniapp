@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 经营概览统计响应 DTO
@@ -34,4 +35,10 @@ public class StatOverviewResponse implements Serializable {
 
     /** 库存预警商品数 */
     private Integer stockWarningCount;
+
+    /** 是否存在降级数据 */
+    private Boolean degraded;
+
+    /** 降级告警列表 */
+    private List<String> warnings;
 }

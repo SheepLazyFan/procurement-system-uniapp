@@ -46,7 +46,8 @@
 
     <!-- 商品销售排名 -->
     <select id="selectProductRanking" resultType="java.util.Map">
-        SELECT oi.product_name                     AS productName,
+        SELECT oi.product_id                        AS productId,
+               oi.product_name                     AS productName,
                COALESCE(SUM(oi.quantity), 0)       AS totalQuantity,
                COALESCE(SUM(oi.amount), 0)         AS totalAmount,
                COALESCE(SUM(oi.profit), 0)         AS totalProfit
@@ -54,8 +55,8 @@
         INNER JOIN oms_sales_order o ON o.id = oi.order_id
         WHERE o.enterprise_id = #{enterpriseId}
           AND o.status != 'CANCELLED'
-          AND o.created_at &gt;= #{startDate}
-          AND o.created_at &lt;= #{endDate}
+          <if test="startDate != null">AND o.created_at &gt;= #{startDate}</if>
+          <if test="endDate != null">AND o.created_at &lt;= #{endDate}</if>
         GROUP BY oi.product_name
         ORDER BY totalAmount DESC
         LIMIT #{limit}
@@ -72,8 +73,8 @@
         WHERE o.enterprise_id = #{enterpriseId}
           AND o.status != 'CANCELLED'
           AND o.customer_id IS NOT NULL
-          AND o.created_at &gt;= #{startDate}
-          AND o.created_at &lt;= #{endDate}
+          <if test="startDate != null">AND o.created_at &gt;= #{startDate}</if>
+          <if test="endDate != null">AND o.created_at &lt;= #{endDate}</if>
         GROUP BY o.customer_id, c.name
         ORDER BY totalAmount DESC
         LIMIT #{limit}
@@ -88,6 +89,52 @@
           AND customer_id = #{customerId}
         ORDER BY id DESC
         LIMIT #{limit}
+    </select>
+
+    <!-- 查询指定时间范围内有订单的企业 ID -->
+    <select id="selectActiveEnterpriseIds" resultType="java.lang.Long">
+        SELECT DISTINCT enterprise_id
+        FROM oms_sales_order
+        WHERE status != 'CANCELLED'
+          AND created_at &gt;= #{startDate}
+          AND created_at &lt;= #{endDate}
+    </select>
+
+    <!-- 查询所有有订单的企业 ID -->
+    <select id="selectAllEnterpriseIds" resultType="java.lang.Long">
+        SELECT DISTINCT enterprise_id
+        FROM oms_sales_order
+        WHERE status != 'CANCELLED'
+    </select>
+
+    <!-- 按企业+日期聚合商品销售（全量回填用） -->
+    <select id="selectProductDailyAgg" resultType="java.util.Map">
+        SELECT DATE_FORMAT(o.created_at, '%Y-%m-%d') AS statDate,
+               oi.product_id                         AS productId,
+               oi.product_name                       AS productName,
+               COALESCE(SUM(oi.quantity), 0)         AS totalQuantity,
+               COALESCE(SUM(oi.amount), 0)           AS totalAmount,
+               COALESCE(SUM(oi.profit), 0)           AS totalProfit
+        FROM oms_sales_order_item oi
+        INNER JOIN oms_sales_order o ON o.id = oi.order_id
+        WHERE o.enterprise_id = #{enterpriseId}
+          AND o.status != 'CANCELLED'
+        GROUP BY DATE_FORMAT(o.created_at, '%Y-%m-%d'), oi.product_id, oi.product_name
+    </select>
+
+    <!-- 按企业+日期聚合客户销售（全量回填用） -->
+    <select id="selectCustomerDailyAgg" resultType="java.util.Map">
+        SELECT DATE_FORMAT(o.created_at, '%Y-%m-%d') AS statDate,
+               o.customer_id                         AS customerId,
+               c.name                                AS customerName,
+               COUNT(*)                              AS orderCount,
+               COALESCE(SUM(o.total_amount), 0)      AS totalAmount
+        FROM oms_sales_order o
+        LEFT JOIN crm_customer c ON c.id = o.customer_id
+        WHERE o.enterprise_id = #{enterpriseId}
+          AND o.status != 'CANCELLED'
+          AND o.customer_id IS NOT NULL
+        GROUP BY DATE_FORMAT(o.created_at, '%Y-%m-%d'), o.customer_id, c.name
     </select>
 
 </mapper>

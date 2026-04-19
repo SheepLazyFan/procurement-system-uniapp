@@ -11,6 +11,10 @@ export const createBackup = (backupType = 'FULL') =>
 export const getBackupList = () =>
   get('/backup/list')
 
+/** 恢复预检信息 */
+export const getRestorePreview = (id) =>
+  get(`/backup/${id}/restore-preview`)
+
 /** 从备份恢复 */
 export const restoreBackup = (id) =>
   post(`/backup/${id}/restore`, {}, { showLoading: true })

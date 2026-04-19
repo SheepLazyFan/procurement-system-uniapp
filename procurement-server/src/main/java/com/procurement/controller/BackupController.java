@@ -1,6 +1,7 @@
 package com.procurement.controller;
 
 import com.procurement.common.result.R;
+import com.procurement.dto.response.BackupRestorePreviewResponse;
 import com.procurement.entity.SysBackup;
 import com.procurement.security.LoginUser;
 import com.procurement.service.BackupService;
@@ -48,11 +49,18 @@ public class BackupController {
         return R.ok(backupService.list(loginUser.getEnterpriseId()));
     }
 
+    @Operation(summary = "恢复预检信息")
+    @GetMapping("/{id}/restore-preview")
+    public R<BackupRestorePreviewResponse> previewRestore(@AuthenticationPrincipal LoginUser loginUser,
+                                                          @PathVariable Long id) {
+        return R.ok(backupService.previewRestore(loginUser.getEnterpriseId(), id));
+    }
+
     @Operation(summary = "从备份恢复")
     @PostMapping("/{id}/restore")
     public R<Void> restore(@AuthenticationPrincipal LoginUser loginUser,
                             @PathVariable Long id) {
-        backupService.restore(loginUser.getEnterpriseId(), id);
+        backupService.restore(loginUser.getEnterpriseId(), id, loginUser.getUserId());
         return R.ok();
     }
 

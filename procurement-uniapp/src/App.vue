@@ -1,5 +1,5 @@
 <script>
-import { useUserStore } from '@/store/user'
+import { useUserStore, waitForLoginReady } from '@/store/user'
 import { useCartStore } from '@/store/cart'
 
 export default {
@@ -20,16 +20,21 @@ export default {
       }
     }, 0)
   },
-  onShow() {
+  async onShow() {
     console.log('App Show')
     // App 从后台切回前台时刷新用户信息
     // 覆盖「员工正在使用 app、店主此时更改其角色」的场景
     try {
+      await waitForLoginReady()
       const userStore = useUserStore()
       if (userStore.isLoggedIn) {
-        userStore.fetchProfile().catch(() => {})
+        userStore.fetchProfile().catch((e) => {
+          console.warn('[app] profile refresh failed', e && e.message || e)
+        })
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[app] onShow profile sync failed', e && e.message || e)
+    }
   },
   onHide() {
     console.log('App Hide')

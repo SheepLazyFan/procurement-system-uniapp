@@ -35,6 +35,6 @@ export const completeSalesOrder = (id) =>
 export const cancelSalesOrder = (id) =>
   put(`/sales-orders/${id}/cancel`)
 
-/** 标记已支付（伪支付） */
+/** 确认收款（线下收款） */
 export const paySalesOrder = (id) =>
   put(`/sales-orders/${id}/pay`)

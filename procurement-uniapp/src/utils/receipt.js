@@ -41,7 +41,12 @@ export function buildSalesReceipt(order, enterpriseName) {
   builder.textLine('日  期: ' + formatDateTime(order.createdAt))
 
   if (order.paymentStatus) {
-    builder.textLine('支  付: ' + (order.paymentStatus === 'PAID' ? '已支付' : '未支付'))
+    const paymentText = order.paymentStatus === 'PAID'
+      ? '已支付'
+      : order.paymentStatus === 'CLAIMED'
+        ? '待确认收款'
+        : '未支付'
+    builder.textLine('支  付: ' + paymentText)
   }
 
   builder.separator()

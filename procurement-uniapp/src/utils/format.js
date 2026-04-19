@@ -101,6 +101,7 @@ export const PURCHASE_ORDER_STATUS = {
  */
 export const PAYMENT_STATUS = {
   UNPAID: '未支付',
+  CLAIMED: '待确认收款',
   PAID: '已支付'
 }
 

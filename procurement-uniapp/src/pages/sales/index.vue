@@ -278,6 +278,7 @@ export default {
       paymentOptions: [
         { label: '不限', value: '' },
         { label: '未支付', value: 'UNPAID' },
+        { label: '待确认收款', value: 'CLAIMED' },
         { label: '已支付', value: 'PAID' }
       ],
       sortOptions: [

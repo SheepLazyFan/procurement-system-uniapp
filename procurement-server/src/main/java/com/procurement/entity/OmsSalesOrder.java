@@ -36,7 +36,7 @@ public class OmsSalesOrder extends BaseEntity {
     /** 订单状态：PENDING/CONFIRMED/SHIPPED/COMPLETED/CANCELLED */
     private String status;
 
-    /** 支付状态：UNPAID/PAID */
+    /** 支付状态：UNPAID/CLAIMED/PAID */
     private String paymentStatus;
 
     /** 收货地址（下单时快照） */

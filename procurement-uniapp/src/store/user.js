@@ -6,7 +6,13 @@ import { wxLogin, getProfile, logout as apiLogout } from '@/api/auth'
 
 // 登录就绪 Promise —— 页面可 await 此变量确保 silentWxLogin 已完成
 let _loginReadyResolve
-const loginReadyPromise = new Promise(resolve => { _loginReadyResolve = resolve })
+let loginReadyPromise
+
+function resetLoginReadyPromise() {
+  loginReadyPromise = new Promise(resolve => { _loginReadyResolve = resolve })
+}
+
+resetLoginReadyPromise()
 
 export function waitForLoginReady() {
   return loginReadyPromise
@@ -75,6 +81,7 @@ export const useUserStore = defineStore('user', {
      * 使用 wx.login 获取 code，发送给后端换取 token
      */
     async silentWxLogin() {
+      resetLoginReadyPromise()
       try {
         const loginRes = await uni.login({ provider: 'weixin' })
         if (!loginRes || !loginRes.code) {
@@ -112,6 +119,21 @@ export const useUserStore = defineStore('user', {
       }
       this._clearLoginState()
       uni.reLaunch({ url: '/pages/inventory/index' })
+    },
+
+    /**
+     * 强制重新登录：用于恢复备份、权限重置等高风险操作后统一退出
+     */
+    forceRelogin(message = '登录态已失效，请重新登录') {
+      this._clearLoginState()
+      uni.showToast({
+        title: message,
+        icon: 'none',
+        duration: 2000
+      })
+      setTimeout(() => {
+        uni.reLaunch({ url: '/pages/auth/login' })
+      }, 1500)
     },
 
     /**

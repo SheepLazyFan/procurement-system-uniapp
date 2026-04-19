@@ -56,10 +56,10 @@ public interface SalesOrderService {
     /**
      * 取消订单（已扣减库存则恢复）
      */
-    void cancel(Long enterpriseId, Long id, String callerMemberRole);
+    void cancel(Long enterpriseId, Long id, Long operatorUserId, String callerMemberRole);
 
     /**
-     * 标记已支付（伪支付）
+     * 确认收款（商家/销售确认线下已收到款项）
      */
-    void pay(Long enterpriseId, Long id);
+    void confirmPayment(Long enterpriseId, Long id, Long operatorUserId, String callerMemberRole);
 }

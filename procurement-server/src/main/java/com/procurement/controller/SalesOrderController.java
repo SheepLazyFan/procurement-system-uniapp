@@ -132,16 +132,16 @@ public class SalesOrderController {
     @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES')")
     public R<Void> cancel(@AuthenticationPrincipal LoginUser loginUser,
                             @PathVariable Long id) {
-        salesOrderService.cancel(loginUser.getEnterpriseId(), id, loginUser.getMemberRole());
+        salesOrderService.cancel(loginUser.getEnterpriseId(), id, loginUser.getUserId(), loginUser.getMemberRole());
         return R.ok();
     }
 
-    @Operation(summary = "标记已支付（伪支付）")
+    @Operation(summary = "确认收款（商家/销售确认线下已收款）")
     @PutMapping("/{id}/pay")
-    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
-    public R<Void> pay(@AuthenticationPrincipal LoginUser loginUser,
-                        @PathVariable Long id) {
-        salesOrderService.pay(loginUser.getEnterpriseId(), id);
+    @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'SALES')")
+    public R<Void> confirmPayment(@AuthenticationPrincipal LoginUser loginUser,
+                                   @PathVariable Long id) {
+        salesOrderService.confirmPayment(loginUser.getEnterpriseId(), id, loginUser.getUserId(), loginUser.getMemberRole());
         return R.ok();
     }
 }

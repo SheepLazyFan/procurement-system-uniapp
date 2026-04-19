@@ -1,5 +1,6 @@
 package com.procurement.service;
 
+import com.procurement.dto.response.BackupRestorePreviewResponse;
 import com.procurement.entity.SysBackup;
 
 import java.io.File;
@@ -21,9 +22,14 @@ public interface BackupService {
     List<SysBackup> list(Long enterpriseId);
 
     /**
+     * 恢复预检信息
+     */
+    BackupRestorePreviewResponse previewRestore(Long enterpriseId, Long backupId);
+
+    /**
      * 从备份恢复（全量覆盖当前企业数据）
      */
-    void restore(Long enterpriseId, Long backupId);
+    void restore(Long enterpriseId, Long backupId, Long operatorUserId);
 
     /**
      * 获取备份文件（用于下载）

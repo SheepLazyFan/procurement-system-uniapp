@@ -14,7 +14,7 @@
 | uni-ui | 1.5.6 | UI 组件库 |
 | Sass | 1.71.1 | CSS 预处理 |
 | Vite | 5.2.8 | 构建工具 |
-| Vitest | 4.1.0 | 单元测试（39 用例）|
+| Vitest | 4.1.0 | 单元测试（87 用例）|
 | dayjs | 1.11.10 | 日期处理 |
 
 ---
@@ -25,6 +25,8 @@
 
 - Node.js ≥ 18
 - [微信开发者工具](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)
+
+> 当前项目使用 `uni-app CLI + Vite` 编译链路，不依赖 `HBuilderX`。日常开发和提审使用 `npm` 命令编译后，再用微信开发者工具导入 `dist` 目录。
 
 ### 安装与运行
 
@@ -43,6 +45,21 @@ npm run dev:h5
 ```
 dist/dev/mp-weixin
 ```
+
+---
+
+## 项目移植
+
+> 部署到新服务器/新微信小程序时，前端需要修改以下配置后重新编译：
+
+| # | 配置项 | 文件 | 操作 |
+|---|--------|------|------|
+| 1 | `VITE_API_BASE` | `.env.production` | 改为新域名 `https://新域名.com/api` |
+| 2 | `VITE_API_BASE` | `.env.development` | 改为新开发 IP（可选） |
+| 3 | `WX_STOCK_WARNING_TEMPLATE_ID` | `src/config/index.js` | 新小程序需重新申请模板，替换 ID |
+| 4 | 微信小程序 AppID | 微信开发者工具 → 项目配置 | 替换为新 AppID |
+
+> **完整的 29 项移植配置更改表**（含后端 + 服务器）请参见 [根目录 README.md — 项目移植配置更改表](../README.md#项目移植配置更改表)。
 
 ---
 
@@ -125,7 +142,7 @@ npm run build:h5
 ## 测试
 
 ```bash
-# 运行全部测试（39 用例）
+# 运行全部测试（87 用例）
 npm test
 
 # 监听模式

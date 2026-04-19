@@ -148,7 +148,7 @@ export default {
       return map[status] || 'info'
     },
     paymentLabel(status) {
-      const map = { UNPAID: '未付款', CLAIMED: '待确认', PAID: '已付款' }
+      const map = { UNPAID: '未付款', CLAIMED: '待确认收款', PAID: '已付款' }
       return map[status] || status || '-'
     },
     getPaymentType(status) {

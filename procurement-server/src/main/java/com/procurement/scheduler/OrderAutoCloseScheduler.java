@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * 订单自动关闭定时任务
  * <p>
- * 每小时扫描一次：将超时未支付（UNPAID / CLAIMED）的 PENDING 订单自动取消并恢复库存。
+ * 每小时扫描一次：将超时未支付（UNPAID）的 PENDING 订单自动取消并恢复库存。
  * 超时阈值默认 24 小时，可通过 order.auto-close-hours 配置覆盖。
  * </p>
  */
@@ -52,8 +52,7 @@ public class OrderAutoCloseScheduler {
         List<OmsSalesOrder> expiredOrders = salesOrderMapper.selectList(
                 new LambdaQueryWrapper<OmsSalesOrder>()
                         .eq(OmsSalesOrder::getStatus, OrderConstants.SALES_PENDING)
-                        .in(OmsSalesOrder::getPaymentStatus,
-                                OrderConstants.PAY_UNPAID, OrderConstants.PAY_CLAIMED)
+                        .eq(OmsSalesOrder::getPaymentStatus, OrderConstants.PAY_UNPAID)
                         .lt(OmsSalesOrder::getCreatedAt, deadline));
 
         if (expiredOrders.isEmpty()) {
@@ -103,7 +102,7 @@ public class OrderAutoCloseScheduler {
 
         order.setStatus(OrderConstants.SALES_CANCELLED);
         order.setCancelBy(OrderConstants.CANCEL_BY_SYSTEM);
-        order.setRemark((order.getRemark() != null ? order.getRemark() + " | " : "") + "系统自动关闭（超时 24 小时未确认收款）");
+        order.setRemark((order.getRemark() != null ? order.getRemark() + " | " : "") + "系统自动关闭（超时 " + autoCloseHours + " 小时未付款）");
         salesOrderMapper.updateById(order);
 
         log.info("订单已自动关闭: orderNo={}", order.getOrderNo());

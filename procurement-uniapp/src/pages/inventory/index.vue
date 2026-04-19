@@ -413,6 +413,13 @@ export default {
   async onShow() {
     await waitForLoginReady()
     const userStore = useUserStore()
+    if (userStore.isLoggedIn && !userStore.hasEnterprise) {
+      try {
+        await userStore.fetchProfile()
+      } catch (e) {
+        console.warn('[inventory] profile sync before enterprise check failed', e && e.message || e)
+      }
+    }
     if (!userStore.hasEnterprise) {
       this.noEnterprise = true
       return

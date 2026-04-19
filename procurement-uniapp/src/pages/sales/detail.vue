@@ -59,14 +59,14 @@
       <button v-if="canCancel" class="btn-ghost" @tap="handleAction('cancel')" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">取消订单</button>
       
       <!-- 财务操作：收款 -->
-      <button v-if="(order.paymentStatus === 'UNPAID' || order.paymentStatus === 'CLAIMED') && order.status !== 'CANCELLED' && hasFullAccess" class="btn-secondary" @tap="handleAction('pay')" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">
-        {{ order.paymentStatus === 'CLAIMED' ? '确认收款' : '标记支付' }}
+      <button v-if="(order.paymentStatus === 'UNPAID' || order.paymentStatus === 'CLAIMED') && order.status !== 'CANCELLED' && (hasFullAccess || isSales)" class="btn-secondary" @tap="handleAction('pay')" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">
+        确认收款
       </button>
 
       <!-- 核心业务流：确认/发货/完成 -->
       <button v-if="order.status === 'PENDING' && (hasFullAccess || isSales)" class="btn-primary" @tap="handleAction('confirm')" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">确认订单</button>
-      <button v-if="order.status === 'CONFIRMED'" class="btn-primary" @tap="handleAction('ship')" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">标记发货</button>
-      <button v-if="order.status === 'SHIPPED'" class="btn-primary" @tap="handleAction('complete')" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">完成订单</button>
+      <button v-if="order.status === 'CONFIRMED' && order.paymentStatus === 'PAID'" class="btn-primary" @tap="handleAction('ship')" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">标记发货</button>
+      <button v-if="order.status === 'SHIPPED' && order.paymentStatus === 'PAID'" class="btn-primary" @tap="handleAction('complete')" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">完成订单</button>
 
       <!-- 售后：打印 -->
       <button v-if="order.status === 'COMPLETED'" class="btn-print btn-full" @tap="handlePrint" :disabled="printing" hover-class="saas-card-push" :hover-start-time="0" :hover-stay-time="100">
@@ -109,7 +109,7 @@ export default {
     canCancel() {
       const s = this.order.status
       if (this.hasFullAccess) return s === 'PENDING' || s === 'CONFIRMED'
-      if (this.isSales)       return s === 'PENDING'
+      if (this.isSales)       return s === 'PENDING' || s === 'CONFIRMED'
       return false
     }
   },
@@ -134,8 +134,10 @@ export default {
     async handleAction(action) {
       if (action === 'cancel') {
         const content = this.order.paymentStatus === 'PAID'
-          ? '该订单已收款，取消后需自行退款给买家，确认取消？'
-          : '确认取消此订单？'
+          ? '该订单已确认收款，取消前请先与买家沟通并完成线下退款，确认继续取消？'
+          : this.order.paymentStatus === 'CLAIMED'
+            ? '买家已提交付款声明，请先核对收款情况并与买家沟通退款后再取消，确认继续？'
+            : '确认取消此订单？'
         const confirmed = await new Promise(resolve =>
           uni.showModal({ title: '取消订单', content, success: res => resolve(res.confirm) })
         )
@@ -153,7 +155,7 @@ export default {
         uni.showToast({ title: '操作成功', icon: 'success' })
         this.loadDetail()
       } catch (e) {
-        uni.showToast({ title: '操作失败', icon: 'none' })
+        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
       }
     },
     async handlePrint() {

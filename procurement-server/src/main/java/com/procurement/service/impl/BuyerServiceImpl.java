@@ -11,6 +11,7 @@ import com.procurement.dto.response.ProductResponse;
 import com.procurement.dto.response.SalesOrderResponse;
 import com.procurement.entity.*;
 import com.procurement.mapper.*;
+import com.procurement.scheduler.RankingAggregateScheduler;
 import com.procurement.service.BuyerService;
 import com.procurement.service.StockWarningNotificationService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 
 import com.procurement.common.util.OrderNoGenerator;
+import com.procurement.common.util.OrderAuditHelper;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -46,6 +48,7 @@ public class BuyerServiceImpl implements BuyerService {
     private final UserMapper userMapper;
     private final OrderNoGenerator orderNoGenerator;
     private final StockWarningNotificationService notificationService;
+    private final RankingAggregateScheduler rankingAggregateScheduler;
 
     @Override
     public Map<String, Object> getStoreInfo(Long enterpriseId) {
@@ -336,13 +339,22 @@ public class BuyerServiceImpl implements BuyerService {
 
         // 校验是该买家的订单
         validateBuyerOrder(buyerUserId, order);
+        ensureBuyerPaymentOperable(order);
 
-        if (OrderConstants.PAY_PAID.equals(order.getPaymentStatus())) {
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
+        if (!OrderConstants.PAY_UNPAID.equals(order.getPaymentStatus())) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "当前订单无需重复提交付款声明");
         }
 
-        order.setPaymentStatus(OrderConstants.PAY_PAID);
+        String fromPaymentStatus = order.getPaymentStatus();
+        order.setPaymentStatus(OrderConstants.PAY_CLAIMED);
+        order.setRemark(OrderAuditHelper.appendSystemAuditRemark(order.getRemark(), buyerUserId, "BUYER",
+                "LEGACY_PAY_COMPAT", fromPaymentStatus, OrderConstants.PAY_CLAIMED,
+                "旧版 pay 接口兼容降级"));
         salesOrderMapper.updateById(order);
+        log.warn("order_audit event=LEGACY_PAY_COMPAT enterpriseId={} orderId={} orderNo={} operatorId={} operatorRole=BUYER fromPaymentStatus={} toPaymentStatus={} fromOrderStatus={} toOrderStatus={} message={}",
+                order.getEnterpriseId(), order.getId(), order.getOrderNo(), buyerUserId,
+                fromPaymentStatus, order.getPaymentStatus(), order.getStatus(), order.getStatus(),
+                "旧版 pay 接口兼容降级为付款声明");
     }
 
     @Override
@@ -354,14 +366,23 @@ public class BuyerServiceImpl implements BuyerService {
         }
 
         validateBuyerOrder(buyerUserId, order);
+        ensureBuyerPaymentOperable(order);
 
         // 只允许 UNPAID 状态声明已付款
         if (!OrderConstants.PAY_UNPAID.equals(order.getPaymentStatus())) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "仅未付款状态可声明已付款");
         }
 
+        String fromPaymentStatus = order.getPaymentStatus();
         order.setPaymentStatus(OrderConstants.PAY_CLAIMED);
+        order.setRemark(OrderAuditHelper.appendSystemAuditRemark(order.getRemark(), buyerUserId, "BUYER",
+                "CLAIM_PAID", fromPaymentStatus, OrderConstants.PAY_CLAIMED,
+                "买家提交线下付款声明"));
         salesOrderMapper.updateById(order);
+        log.info("order_audit event=CLAIM_PAID enterpriseId={} orderId={} orderNo={} operatorId={} operatorRole=BUYER fromPaymentStatus={} toPaymentStatus={} fromOrderStatus={} toOrderStatus={} message={}",
+                order.getEnterpriseId(), order.getId(), order.getOrderNo(), buyerUserId,
+                fromPaymentStatus, order.getPaymentStatus(), order.getStatus(), order.getStatus(),
+                "买家提交线下付款声明");
     }
 
     @Override
@@ -441,9 +462,10 @@ public class BuyerServiceImpl implements BuyerService {
         }
         validateBuyerOrder(buyerUserId, order);
 
-        // 只有 PENDING 状态才允许买家取消
-        if (!OrderConstants.SALES_PENDING.equals(order.getStatus())) {
-            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "仅待确认状态的订单可取消");
+        // 买家只允许取消 PENDING + UNPAID 订单
+        if (!OrderConstants.SALES_PENDING.equals(order.getStatus())
+                || !OrderConstants.PAY_UNPAID.equals(order.getPaymentStatus())) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "仅待确认且未付款的订单可取消");
         }
 
         // 恢复库存
@@ -472,10 +494,26 @@ public class BuyerServiceImpl implements BuyerService {
             }
         }
 
+        String previousOrderStatus = order.getStatus();
+        String previousPaymentStatus = order.getPaymentStatus();
         order.setCancelBy(OrderConstants.CANCEL_BY_BUYER);
         order.setStatus(OrderConstants.SALES_CANCELLED);
-        order.setRemark((order.getRemark() != null ? order.getRemark() + " | " : "") + "买家主动取消");
+        order.setRemark(OrderAuditHelper.appendSystemAuditRemark(order.getRemark(), buyerUserId, "BUYER",
+                "CANCEL_ORDER", previousPaymentStatus, previousPaymentStatus,
+                "买家取消订单"));
         salesOrderMapper.updateById(order);
+        log.info("order_audit event=CANCEL_ORDER enterpriseId={} orderId={} orderNo={} operatorId={} operatorRole=BUYER fromPaymentStatus={} toPaymentStatus={} fromOrderStatus={} toOrderStatus={} message={}",
+                order.getEnterpriseId(), order.getId(), order.getOrderNo(), buyerUserId,
+                previousPaymentStatus, previousPaymentStatus, previousOrderStatus, order.getStatus(),
+                "买家取消订单");
+
+        // 取消后触发排行摘要表重新聚合（事务提交后异步执行）
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                rankingAggregateScheduler.aggregateToday();
+            }
+        });
     }
 
     // ===================== 私有方法 =====================
@@ -496,6 +534,13 @@ public class BuyerServiceImpl implements BuyerService {
         CrmCustomer customer = customerMapper.selectById(order.getCustomerId());
         if (customer == null || !buyer.getWxOpenid().equals(customer.getWxOpenid())) {
             throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+    }
+
+    private void ensureBuyerPaymentOperable(OmsSalesOrder order) {
+        if (OrderConstants.SALES_CANCELLED.equals(order.getStatus())
+                || OrderConstants.SALES_COMPLETED.equals(order.getStatus())) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "当前订单状态不允许付款操作");
         }
     }
 

@@ -349,11 +349,11 @@ public class ProductServiceImpl implements ProductService {
             }
 
             // 4.3 分类处理（不存在则自动新建）
-            Long categoryId = categoryNameToId.get(row.getCategoryName().trim());
+            Long categoryId = categoryNameToId.get(row.getCategoryName().replaceAll("\\s+", ""));
             if (categoryId == null) {
                 PmsCategory newCat = new PmsCategory();
                 newCat.setEnterpriseId(enterpriseId);
-                newCat.setName(row.getCategoryName().trim());
+                newCat.setName(row.getCategoryName().replaceAll("\\s+", ""));
                 newCat.setSortOrder(0);
                 categoryMapper.insert(newCat);
                 categoryId = newCat.getId();
@@ -362,7 +362,7 @@ public class ProductServiceImpl implements ProductService {
             }
 
             // 4.4 重复商品处理
-            PmsProduct existing = productNameMap.get(row.getName().trim());
+            PmsProduct existing = productNameMap.get(row.getName().replaceAll("\\s+", ""));
             if (existing != null) {
                 if (!overwrite) {
                     failCount++;
@@ -371,8 +371,8 @@ public class ProductServiceImpl implements ProductService {
                 }
                 // 覆盖更新
                 existing.setCategoryId(categoryId);
-                existing.setSpec(row.getSpec());
-                existing.setUnit(row.getUnit().trim());
+                existing.setSpec(row.getSpec() != null ? row.getSpec().replaceAll("\\s+", " ").trim() : null);
+                existing.setUnit(row.getUnit().replaceAll("\\s+", ""));
                 existing.setPrice(row.getPrice());
                 existing.setCostPrice(row.getCostPrice() != null ? row.getCostPrice() : BigDecimal.ZERO);
                 if (row.getStock() != null) existing.setStock(row.getStock());
@@ -387,9 +387,9 @@ public class ProductServiceImpl implements ProductService {
                 PmsProduct product = new PmsProduct();
                 product.setEnterpriseId(enterpriseId);
                 product.setCategoryId(categoryId);
-                product.setName(row.getName().trim());
-                product.setSpec(row.getSpec());
-                product.setUnit(row.getUnit().trim());
+                product.setName(row.getName().replaceAll("\\s+", ""));
+                product.setSpec(row.getSpec() != null ? row.getSpec().replaceAll("\\s+", " ").trim() : null);
+                product.setUnit(row.getUnit().replaceAll("\\s+", ""));
                 product.setPrice(row.getPrice());
                 product.setCostPrice(row.getCostPrice() != null ? row.getCostPrice() : BigDecimal.ZERO);
                 product.setStock(row.getStock() != null ? row.getStock() : 0);
@@ -436,7 +436,7 @@ public class ProductServiceImpl implements ProductService {
             // 过滤空行和非数据行（产品名称为空则跳过）
             if (!StringUtils.hasText(raw.getName())) continue;
             // 过滤备注行（名称含"备注"、"浏阳"等非商品文字）
-            String name = raw.getName().trim();
+            String name = raw.getName().replaceAll("\\s+", "");
             if (name.startsWith("备注") || name.length() > 100) continue;
 
             ProductImportData item = new ProductImportData();

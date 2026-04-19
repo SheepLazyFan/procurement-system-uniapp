@@ -1,42 +1,44 @@
 <template>
-  <view class="page-cart container">
+  <view class="page-cart">
     <NavBar title="购物车" />
 
-    <view v-if="!isEmpty">
+    <view class="container" v-if="!isEmpty">
       <!-- 商品列表 -->
-      <view class="card" v-for="item in cartItems" :key="item.productId">
-        <view class="cart-item">
-          <image v-if="item.image" :src="$fileUrl(item.image)" class="item-img" mode="aspectFill" />
-          <view v-else class="item-img-placeholder">📦</view>
-          <view class="item-info">
-            <text class="item-name">{{ item.name }}</text>
-            <text class="item-spec" v-if="item.spec">{{ item.spec }}</text>
-            <text class="item-price">¥{{ item.price }}</text>
-          </view>
-          <view class="item-right">
-            <view class="quantity-control">
-              <text class="qty-btn" @tap="changeQty(item, -1)">－</text>
-              <text class="qty-text">{{ item.quantity }}</text>
-              <text class="qty-btn" @tap="changeQty(item, 1)">＋</text>
+      <view class="cart-card" v-for="item in cartItems" :key="item.productId">
+        <image v-if="item.image" :src="$fileUrl(item.image)" class="cart-card__img" mode="aspectFill" />
+        <view v-else class="cart-card__img-placeholder">
+          <view class="svg-icon-pkg"></view>
+        </view>
+        <view class="cart-card__body">
+          <text class="cart-card__name">{{ item.name }}</text>
+          <text class="cart-card__spec" v-if="item.spec">{{ item.spec }}</text>
+          <view class="cart-card__bottom">
+            <text class="cart-card__price">¥{{ item.price }}</text>
+            <view class="cart-card__actions">
+              <view class="qty-mini">
+                <text class="qty-mini__btn" @tap="changeQty(item, -1)">－</text>
+                <text class="qty-mini__val">{{ item.quantity }}</text>
+                <text class="qty-mini__btn" @tap="changeQty(item, 1)">＋</text>
+              </view>
+              <text class="cart-card__remove" @tap="handleRemove(item)">删除</text>
             </view>
-            <text class="item-remove" @tap="handleRemove(item)">删除</text>
           </view>
         </view>
-      </view>
-
-      <!-- 底部结算栏 -->
-      <view class="bottom-bar safe-area-bottom">
-        <view class="total-section">
-          <text class="total-label">合计：</text>
-          <text class="total-price">¥{{ totalAmount.toFixed(2) }}</text>
-        </view>
-        <button class="btn-checkout" @tap="goCheckout">
-          去结算({{ totalCount }})
-        </button>
       </view>
     </view>
 
     <EmptyState v-else text="购物车是空的" icon="🛒" buttonText="去逛逛" @action="goBack" />
+
+    <!-- 底部结算栏 -->
+    <view v-if="!isEmpty" class="settle-bar safe-area-bottom">
+      <view class="settle-bar__info">
+        <text class="settle-bar__label">合计：</text>
+        <text class="settle-bar__price">¥{{ totalAmount.toFixed(2) }}</text>
+      </view>
+      <button class="settle-bar__btn" hover-class="settle-bar__btn--hover" @tap="goCheckout">
+        去结算({{ totalCount }})
+      </button>
+    </view>
   </view>
 </template>
 
@@ -48,9 +50,7 @@ import { useCartStore } from '@/store/cart'
 export default {
   components: { NavBar, EmptyState },
   data() {
-    return {
-      enterpriseId: ''
-    }
+    return { enterpriseId: '' }
   },
   computed: {
     cartItems() { return useCartStore().items },
@@ -63,8 +63,6 @@ export default {
     useCartStore().restoreFromStorage()
   },
   onShow() {
-    // 从结算页/其他页面返回时，微信小程序不保证后台页面响应式更新
-    // 主动从 storage 同步最新状态（clearCart 已写入 storage）
     useCartStore().restoreFromStorage()
   },
   methods: {
@@ -98,117 +96,135 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.cart-item {
-  display: flex;
-  gap: 16rpx;
+.page-cart {
+  background: #f7f8fa;
+  min-height: 100vh;
+  padding-bottom: 130rpx;
 }
-.item-img {
-  width: 160rpx;
-  height: 160rpx;
+.svg-icon-pkg {
+  width: 48rpx; height: 48rpx;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ccc' stroke-width='1.5'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E");
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+}
+.cart-card {
+  display: flex;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.03);
+}
+.cart-card__img {
+  width: 160rpx; height: 160rpx;
   border-radius: 12rpx;
   flex-shrink: 0;
 }
-.item-img-placeholder {
-  width: 160rpx;
-  height: 160rpx;
+.cart-card__img-placeholder {
+  width: 160rpx; height: 160rpx;
   border-radius: 12rpx;
-  background: #f5f5f5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 48rpx;
+  background: #f5f6fa;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.item-info {
+.cart-card__body {
   flex: 1;
   min-width: 0;
+  margin-left: 20rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
-.item-name {
-  display: block;
+.cart-card__name {
   font-size: 28rpx;
-  color: #333;
-  font-weight: 500;
+  color: #1a1a1a;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.item-spec {
-  display: block;
+.cart-card__spec {
   font-size: 22rpx;
-  color: #999;
+  color: #aaa;
   margin-top: 4rpx;
 }
-.item-price {
-  display: block;
-  font-size: 28rpx;
-  color: #ff4d4f;
-  font-weight: 600;
-  margin-top: 12rpx;
-}
-.item-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: space-between;
-}
-.quantity-control {
+.cart-card__bottom {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-top: 16rpx;
 }
-.qty-btn {
+.cart-card__price {
+  font-size: 30rpx;
+  color: #ff4d4f;
+  font-weight: 700;
+}
+.cart-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+.qty-mini {
+  display: flex;
+  align-items: center;
+  background: #f5f6fa;
+  border-radius: 10rpx;
+  overflow: hidden;
+}
+.qty-mini__btn {
+  width: 48rpx; height: 44rpx;
+  line-height: 44rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #555;
+}
+.qty-mini__val {
   width: 52rpx;
-  height: 52rpx;
-  line-height: 52rpx;
   text-align: center;
-  background: #f5f5f5;
-  border-radius: 8rpx;
-  font-size: 28rpx;
-  color: #333;
+  font-size: 26rpx;
+  color: #1a1a1a;
+  font-weight: 600;
+  background: #fff;
 }
-.qty-text {
-  width: 64rpx;
-  text-align: center;
-  font-size: 28rpx;
-  color: #333;
-}
-.item-remove {
+.cart-card__remove {
   font-size: 22rpx;
   color: #e43d33;
 }
-.bottom-bar {
+/* 底部结算栏 */
+.settle-bar {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 0; left: 0; right: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16rpx 24rpx;
+  padding: 12rpx 24rpx;
   background: #fff;
-  box-shadow: 0 -2rpx 12rpx rgba(0,0,0,0.06);
+  border-top: 1rpx solid #f0f0f0;
+  box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.04);
 }
-.total-section {
+.settle-bar__info {
   display: flex;
   align-items: baseline;
 }
-.total-label {
+.settle-bar__label {
   font-size: 26rpx;
   color: #666;
 }
-.total-price {
+.settle-bar__price {
   font-size: 36rpx;
   color: #ff4d4f;
   font-weight: 700;
 }
-.btn-checkout {
-  min-width: 240rpx;
-  height: 80rpx;
-  line-height: 80rpx;
+.settle-bar__btn {
+  min-width: 220rpx;
+  height: 76rpx;
+  line-height: 76rpx;
   background: #ff4d4f;
   color: #fff;
   font-size: 28rpx;
   font-weight: 600;
-  border-radius: 40rpx;
+  border-radius: 38rpx;
   text-align: center;
+  border: none;
 }
+.settle-bar__btn--hover { opacity: 0.85; }
 </style>

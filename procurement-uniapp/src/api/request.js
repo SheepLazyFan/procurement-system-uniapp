@@ -120,6 +120,9 @@ function request(options = {}) {
       },
       fail: (err) => {
         if (showLoading) uni.hideLoading()
+        const fullUrl = `${BASE_URL}${url}`
+        const isTimeout = !!(err && typeof err.errMsg === 'string' && err.errMsg.toLowerCase().includes('timeout'))
+        console.warn(`[request] ${method} ${fullUrl} failed`, err)
         if (showError) {
           uni.showToast({
             title: '网络异常，请稍后重试',
@@ -127,7 +130,13 @@ function request(options = {}) {
             duration: 2000
           })
         }
-        reject(err)
+        reject({
+          ...err,
+          code: isTimeout ? 'REQUEST_TIMEOUT' : err?.code,
+          message: isTimeout ? '请求超时' : (err?.message || err?.errMsg || '网络异常'),
+          url: fullUrl,
+          method
+        })
       }
     })
   })
@@ -148,10 +157,7 @@ function handleBusinessError(body, showError) {
     // 正在刷新中的并发请求，静默忽略
     if (isRefreshingToken) return
     isRefreshingToken = true
-    import('@/store/user').then(({ useUserStore }) => {
-      const userStore = useUserStore()
-      return userStore.silentWxLogin()
-    }).then(() => {
+    silentRefreshLogin().then(() => {
       isRefreshingToken = false
       // 刷新当前页面以重新发起请求
       const pages = getCurrentPages()
@@ -162,14 +168,13 @@ function handleBusinessError(body, showError) {
       }
     }).catch(() => {
       isRefreshingToken = false
-      uni.removeStorageSync('token')
-      uni.removeStorageSync('userInfo')
-      uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
-      // 自动重新登录失败时跳转到登录页
-      setTimeout(() => {
-        uni.reLaunch({ url: '/pages/auth/login' })
-      }, 1500)
+      forceRelogin('登录已过期，请重新登录')
     })
+    return
+  }
+  // 企业恢复、权限重置等场景下的强制重新登录
+  if (token && body.code === 40103) {
+    forceRelogin(body.message || '登录态已失效，请重新登录')
     return
   }
   // 未创建/加入企业错误静默处理（由页面自行展示提示）
@@ -192,10 +197,49 @@ function handleUnauthorized() {
   const token = uni.getStorageSync('token')
   // 如果本来就没有 token（未登录状态），静默处理，不弹窗不跳转
   if (!token) return
+  forceRelogin('登录已过期，请重新登录')
+}
+
+function silentRefreshLogin() {
+  return new Promise((resolve, reject) => {
+    uni.login({
+      provider: 'weixin',
+      success: (loginRes) => {
+        if (!loginRes || !loginRes.code) {
+          reject(new Error('wx.login 未返回有效 code'))
+          return
+        }
+        uni.request({
+          url: `${BASE_URL}/auth/wx-login`,
+          method: 'POST',
+          data: { code: loginRes.code },
+          header: {
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000,
+          success: (res) => {
+            const body = res.data
+            if (res.statusCode === 200 && body?.code === 200 && body?.data?.token) {
+              uni.setStorageSync('token', body.data.token)
+              uni.setStorageSync('userInfo', JSON.stringify(body.data.user || {}))
+              resolve(body.data)
+              return
+            }
+            reject(body || new Error('静默登录失败'))
+          },
+          fail: reject
+        })
+      },
+      fail: reject
+    })
+  })
+}
+
+function forceRelogin(message) {
   uni.removeStorageSync('token')
   uni.removeStorageSync('userInfo')
   uni.showToast({
-    title: '登录已过期，请重新登录',
+    title: message,
     icon: 'none',
     duration: 2000
   })

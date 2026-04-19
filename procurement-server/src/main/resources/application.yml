@@ -14,11 +14,20 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      timeout: 3000ms
 
 server:
   port: 8080
   servlet:
     context-path: /api
+
+# 应用版本号（从配置读取，供 /statistics/version 接口返回）
+app:
+  version: v2026.04.10
 
 # =============================================
 # MyBatis-Plus 配置

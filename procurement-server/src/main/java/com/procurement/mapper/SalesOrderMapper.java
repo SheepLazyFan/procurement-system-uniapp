@@ -48,4 +48,20 @@ public interface SalesOrderMapper extends BaseMapper<OmsSalesOrder> {
             @Param("enterpriseId") Long enterpriseId,
             @Param("customerId") Long customerId,
             @Param("limit") int limit);
+
+    /** 查询指定时间范围内有订单的企业 ID */
+    List<Long> selectActiveEnterpriseIds(
+            @Param("startDate") String startDate,
+            @Param("endDate") String endDate);
+
+    /** 查询所有有订单的企业 ID */
+    List<Long> selectAllEnterpriseIds();
+
+    /** 按企业+日期聚合商品销售（用于全量回填） */
+    List<Map<String, Object>> selectProductDailyAgg(
+            @Param("enterpriseId") Long enterpriseId);
+
+    /** 按企业+日期聚合客户销售（用于全量回填） */
+    List<Map<String, Object>> selectCustomerDailyAgg(
+            @Param("enterpriseId") Long enterpriseId);
 }

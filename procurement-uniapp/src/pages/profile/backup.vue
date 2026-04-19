@@ -56,7 +56,7 @@
 <script>
 import NavBar from '@/components/common/NavBar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import { createBackup, getBackupList, restoreBackup, deleteBackup, downloadBackup } from '@/api/backup'
+import { createBackup, getBackupList, getRestorePreview, restoreBackup, deleteBackup, downloadBackup } from '@/api/backup'
 import { formatDateTime, formatFileSize } from '@/utils/format'
 import { useUserStore } from '@/store/user'
 
@@ -107,24 +107,56 @@ export default {
         this.creating = false
       }
     },
-    handleRestore(item) {
-      uni.showModal({
-        title: '⚠️ 警告',
-        content: '恢复备份将覆盖当前全部业务数据（商品、订单、客户、供应商等），此操作不可撤销！确定恢复？',
-        confirmColor: '#e43d33',
-        confirmText: '确定恢复',
-        success: async (res) => {
-          if (res.confirm) {
-            try {
-              await restoreBackup(item.id)
-              uni.showToast({ title: '恢复成功' })
-              this.loadList()
-            } catch (e) {
-              uni.showToast({ title: e.message || '恢复失败', icon: 'none' })
-            }
-          }
-        }
-      })
+    async handleRestore(item) {
+      try {
+        const preview = await getRestorePreview(item.id)
+        const summary = this.buildRestoreSummary(preview)
+        const firstConfirm = await new Promise(resolve => {
+          uni.showModal({
+            title: '恢复预检',
+            content: summary,
+            confirmColor: '#e43d33',
+            confirmText: '继续恢复',
+            success: res => resolve(res.confirm)
+          })
+        })
+        if (!firstConfirm) return
+
+        const secondConfirm = await new Promise(resolve => {
+          uni.showModal({
+            title: '二次确认',
+            content: '恢复前会自动生成当前数据快照。恢复成功后，本企业所有商家和员工都需要重新登录。确定继续？',
+            confirmColor: '#e43d33',
+            confirmText: '确认恢复',
+            success: res => resolve(res.confirm)
+          })
+        })
+        if (!secondConfirm) return
+
+        await restoreBackup(item.id)
+        useUserStore().forceRelogin('数据已恢复，请重新登录')
+      } catch (e) {
+        uni.showToast({ title: e.message || '恢复失败', icon: 'none' })
+      }
+    },
+    buildRestoreSummary(preview) {
+      const counts = preview?.recordCounts || {}
+      const lines = [
+        `将恢复到备份：${preview?.backupCreatedAt || '-'}`,
+        `备份企业：${preview?.backupEnterpriseName || preview?.currentEnterpriseName || '-'}`,
+        `企业资料：${counts.enterprise || 0} 份`,
+        `内部用户：${counts.users || 0} 个`,
+        `团队成员：${counts.teamMembers || 0} 个`,
+        `商品/分类：${counts.products || 0}/${counts.categories || 0}`,
+        `销售订单：${counts.salesOrders || 0} 单`,
+        `采购订单：${counts.purchaseOrders || 0} 单`,
+        '',
+        '恢复前将自动生成一份当前数据快照。'
+      ]
+      if (preview?.warnings?.length) {
+        lines.push('', `注意：${preview.warnings[preview.warnings.length - 1]}`)
+      }
+      return lines.join('\n')
     },
     async handleDownload(item) {
       try {

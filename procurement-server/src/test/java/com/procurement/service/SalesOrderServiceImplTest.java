@@ -14,6 +14,8 @@ import com.procurement.mapper.SalesOrderItemMapper;
 import com.procurement.mapper.SalesOrderMapper;
 import com.procurement.service.impl.SalesOrderServiceImpl;
 import com.procurement.common.util.OrderNoGenerator;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,14 +33,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
- * SalesOrderServiceImpl 单元测试
+ * SalesOrderServiceImpl \u5355\u5143\u6d4b\u8bd5
  * <p>
- * 测试范围：订单创建、金额快照计算、状态流转、取消逻辑。
- * 依赖全部 Mock，不启动 Spring 上下文。
+ * \u6d4b\u8bd5\u8303\u56f4\uff1a\u8ba2\u5355\u521b\u5efa\u3001\u91d1\u989d\u5feb\u7167\u8ba1\u7b97\u3001\u72b6\u6001\u6d41\u8f6c\u3001\u53d6\u6d88\u903b\u8f91\u3002
+ * \u4f9d\u8d56\u5168\u90e8 Mock\uff0c\u4e0d\u542f\u52a8 Spring \u4e0a\u4e0b\u6587\u3002
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("SalesOrderServiceImpl — 销售订单服务")
+@DisplayName("SalesOrderServiceImpl \u2014 \u9500\u552e\u8ba2\u5355\u670d\u52a1")
 class SalesOrderServiceImplTest {
 
     @Mock private SalesOrderMapper salesOrderMapper;
@@ -50,16 +53,31 @@ class SalesOrderServiceImplTest {
     @InjectMocks
     private SalesOrderServiceImpl salesOrderService;
 
+    @BeforeEach
+    void setUp() {
+        // cancel() uses TransactionSynchronizationManager.registerSynchronization()
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.initSynchronization();
+        }
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     // ===========================================================
-    // 辅助方法
+    // \u8f85\u52a9\u65b9\u6cd5
     // ===========================================================
 
     private PmsProduct buildProduct(Long id, Long enterpriseId, BigDecimal price, BigDecimal costPrice) {
         PmsProduct p = new PmsProduct();
         p.setId(id);
         p.setEnterpriseId(enterpriseId);
-        p.setName("商品-" + id);
-        p.setUnit("箱");
+        p.setName("\u5546\u54c1-" + id);
+        p.setUnit("\u7bb1");
         p.setPrice(price);
         p.setCostPrice(costPrice);
         p.setStock(100);
@@ -81,7 +99,7 @@ class SalesOrderServiceImplTest {
     }
 
     // ===========================================================
-    // 1. create — 订单创建与价格快照
+    // 1. create
     // ===========================================================
 
     @Test
@@ -95,7 +113,7 @@ class SalesOrderServiceImplTest {
 
         when(orderNoGenerator.generate(any(), any(), any())).thenReturn("SO20260315001");
         when(productMapper.selectById(10L)).thenReturn(product);
-        when(productMapper.adjustStock(eq(10L), eq(-4))).thenReturn(1); // mock 扣库存成功
+        when(productMapper.adjustStock(eq(10L), eq(-4))).thenReturn(1);
 
         SalesOrderRequest.OrderItemRequest item = new SalesOrderRequest.OrderItemRequest();
         item.setProductId(10L);
@@ -107,32 +125,31 @@ class SalesOrderServiceImplTest {
         // Act
         salesOrderService.create(enterpriseId, request);
 
-        // Assert — 主订单总金额 = 25.00 × 4 = 100.00
+        // Assert
         ArgumentCaptor<OmsSalesOrder> orderCaptor = ArgumentCaptor.forClass(OmsSalesOrder.class);
         verify(salesOrderMapper).insert(orderCaptor.capture());
         OmsSalesOrder saved = orderCaptor.getValue();
 
         assertThat(saved.getTotalAmount())
-                .as("订单总金额必须等于 price × quantity 的快照计算结果")
+                .as("\u8ba2\u5355\u603b\u91d1\u989d\u5fc5\u987b\u7b49\u4e8e price \u00d7 quantity \u7684\u5feb\u7167\u8ba1\u7b97\u7ed3\u679c")
                 .isEqualByComparingTo(new BigDecimal("100.00"));
         assertThat(saved.getTotalCost())
-                .as("订单总成本必须等于 costPrice × quantity")
+                .as("\u8ba2\u5355\u603b\u6210\u672c\u5fc5\u987b\u7b49\u4e8e costPrice \u00d7 quantity")
                 .isEqualByComparingTo(new BigDecimal("60.00"));
         assertThat(saved.getTotalProfit())
-                .as("订单毛利润 = (price - costPrice) × quantity = 10 × 4 = 40")
+                .as("\u8ba2\u5355\u6bdb\u5229\u6da6 = (price - costPrice) \u00d7 quantity = 10 \u00d7 4 = 40")
                 .isEqualByComparingTo(new BigDecimal("40.00"));
     }
 
     @Test
-    @DisplayName("Should save price snapshot in order item — not the latest product price")
+    @DisplayName("Should save price snapshot in order item")
     void should_saveOriginalPrice_in_orderItem_snapshot() {
-        // Arrange
         Long enterpriseId = 1L;
         PmsProduct product = buildProduct(20L, enterpriseId, new BigDecimal("50.00"), new BigDecimal("30.00"));
 
         when(orderNoGenerator.generate(any(), any(), any())).thenReturn("SO20260315002");
         when(productMapper.selectById(20L)).thenReturn(product);
-        when(productMapper.adjustStock(eq(20L), eq(-3))).thenReturn(1); // mock 扣库存成功
+        when(productMapper.adjustStock(eq(20L), eq(-3))).thenReturn(1);
 
         SalesOrderRequest.OrderItemRequest itemReq = new SalesOrderRequest.OrderItemRequest();
         itemReq.setProductId(20L);
@@ -141,28 +158,25 @@ class SalesOrderServiceImplTest {
         SalesOrderRequest request = new SalesOrderRequest();
         request.setItems(List.of(itemReq));
 
-        // Act
         salesOrderService.create(enterpriseId, request);
 
-        // Assert — 明细中 price = 50.00（下单时快照），amount = 50 × 3 = 150
         ArgumentCaptor<OmsSalesOrderItem> itemCaptor = ArgumentCaptor.forClass(OmsSalesOrderItem.class);
         verify(salesOrderItemMapper).insert(itemCaptor.capture());
         OmsSalesOrderItem savedItem = itemCaptor.getValue();
 
         assertThat(savedItem.getPrice())
-                .as("明细单价必须快照下单时的商品价格")
+                .as("\u660e\u7ec6\u5355\u4ef7\u5fc5\u987b\u5feb\u7167\u4e0b\u5355\u65f6\u7684\u5546\u54c1\u4ef7\u683c")
                 .isEqualByComparingTo(new BigDecimal("50.00"));
         assertThat(savedItem.getAmount())
-                .as("明细金额 = price × quantity = 150.00")
+                .as("\u660e\u7ec6\u91d1\u989d = price \u00d7 quantity = 150.00")
                 .isEqualByComparingTo(new BigDecimal("150.00"));
     }
 
     @Test
     @DisplayName("Should throw NOT_FOUND when product does not belong to current enterprise")
     void should_throwNotFound_when_productBelongsToOtherEnterprise() {
-        // Arrange
         Long myEnterpriseId = 1L;
-        PmsProduct product = buildProduct(30L, 999L, BigDecimal.TEN, BigDecimal.ONE); // 属于企业 999
+        PmsProduct product = buildProduct(30L, 999L, BigDecimal.TEN, BigDecimal.ONE);
 
         when(orderNoGenerator.generate(any(), any(), any())).thenReturn("SO20260315003");
         when(productMapper.selectById(30L)).thenReturn(product);
@@ -174,7 +188,6 @@ class SalesOrderServiceImplTest {
         SalesOrderRequest request = new SalesOrderRequest();
         request.setItems(List.of(item));
 
-        // Act & Assert — 企业数据隔离，不能下他企业的商品
         assertThatThrownBy(() -> salesOrderService.create(myEnterpriseId, request))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
@@ -182,15 +195,14 @@ class SalesOrderServiceImplTest {
     }
 
     @Test
-    @DisplayName("Should set order status to PENDING and payment status to UNPAID on creation")
+    @DisplayName("Should set order status to PENDING and payment to UNPAID on creation")
     void should_setInitialStatus_when_orderCreated() {
-        // Arrange
         Long enterpriseId = 1L;
         PmsProduct product = buildProduct(40L, enterpriseId, BigDecimal.TEN, BigDecimal.ONE);
 
         when(orderNoGenerator.generate(any(), any(), any())).thenReturn("SO20260315004");
         when(productMapper.selectById(40L)).thenReturn(product);
-        when(productMapper.adjustStock(eq(40L), eq(-1))).thenReturn(1); // mock 扣库存成功
+        when(productMapper.adjustStock(eq(40L), eq(-1))).thenReturn(1);
 
         SalesOrderRequest.OrderItemRequest item = new SalesOrderRequest.OrderItemRequest();
         item.setProductId(40L);
@@ -199,31 +211,26 @@ class SalesOrderServiceImplTest {
         SalesOrderRequest request = new SalesOrderRequest();
         request.setItems(List.of(item));
 
-        // Act
         salesOrderService.create(enterpriseId, request);
 
-        // Assert
         verify(salesOrderMapper).insert(argThat(o ->
                 OrderConstants.SALES_PENDING.equals(o.getStatus())
                         && OrderConstants.PAY_UNPAID.equals(o.getPaymentStatus())));
     }
 
     // ===========================================================
-    // 2. confirm — 状态流转：PENDING → CONFIRMED
+    // 2. confirm
     // ===========================================================
 
     @Test
     @DisplayName("Should change status to CONFIRMED when order is PENDING")
     void should_confirmOrder_when_statusIsPending() {
-        // Arrange
         Long enterpriseId = 1L;
         OmsSalesOrder order = buildOrder(1L, enterpriseId, OrderConstants.SALES_PENDING);
         when(salesOrderMapper.selectById(1L)).thenReturn(order);
 
-        // Act
         salesOrderService.confirm(enterpriseId, 1L);
 
-        // Assert
         verify(salesOrderMapper).updateById(argThat(o ->
                 OrderConstants.SALES_CONFIRMED.equals(o.getStatus())));
     }
@@ -231,11 +238,9 @@ class SalesOrderServiceImplTest {
     @Test
     @DisplayName("Should throw ORDER_STATUS_ERROR when confirming a CANCELLED order")
     void should_throwOrderStatusError_when_confirmingCancelledOrder() {
-        // Arrange
         OmsSalesOrder order = buildOrder(2L, 1L, OrderConstants.SALES_CANCELLED);
         when(salesOrderMapper.selectById(2L)).thenReturn(order);
 
-        // Act & Assert
         assertThatThrownBy(() -> salesOrderService.confirm(1L, 2L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
@@ -243,32 +248,28 @@ class SalesOrderServiceImplTest {
     }
 
     // ===========================================================
-    // 3. ship — 状态流转：CONFIRMED → SHIPPED
+    // 3. ship
     // ===========================================================
 
     @Test
     @DisplayName("Should change status to SHIPPED when order is CONFIRMED")
     void should_shipOrder_when_statusIsConfirmed() {
-        // Arrange
         OmsSalesOrder order = buildOrder(3L, 1L, OrderConstants.SALES_CONFIRMED);
+        order.setPaymentStatus(OrderConstants.PAY_PAID);
         when(salesOrderMapper.selectById(3L)).thenReturn(order);
 
-        // Act
         salesOrderService.ship(1L, 3L);
 
-        // Assert
         verify(salesOrderMapper).updateById(argThat(o ->
                 OrderConstants.SALES_SHIPPED.equals(o.getStatus())));
     }
 
     @Test
-    @DisplayName("Should throw ORDER_STATUS_ERROR when shipping a PENDING order (skips CONFIRMED)")
+    @DisplayName("Should throw ORDER_STATUS_ERROR when shipping a PENDING order")
     void should_throwOrderStatusError_when_shippingPendingOrder() {
-        // Arrange
         OmsSalesOrder order = buildOrder(4L, 1L, OrderConstants.SALES_PENDING);
         when(salesOrderMapper.selectById(4L)).thenReturn(order);
 
-        // Act & Assert
         assertThatThrownBy(() -> salesOrderService.ship(1L, 4L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
@@ -276,20 +277,18 @@ class SalesOrderServiceImplTest {
     }
 
     // ===========================================================
-    // 4. complete — 状态流转：SHIPPED → COMPLETED
+    // 4. complete
     // ===========================================================
 
     @Test
     @DisplayName("Should change status to COMPLETED when order is SHIPPED")
     void should_completeOrder_when_statusIsShipped() {
-        // Arrange
         OmsSalesOrder order = buildOrder(5L, 1L, OrderConstants.SALES_SHIPPED);
+        order.setPaymentStatus(OrderConstants.PAY_PAID);
         when(salesOrderMapper.selectById(5L)).thenReturn(order);
 
-        // Act
         salesOrderService.complete(1L, 5L);
 
-        // Assert
         verify(salesOrderMapper).updateById(argThat(o ->
                 OrderConstants.SALES_COMPLETED.equals(o.getStatus())));
     }
@@ -297,11 +296,9 @@ class SalesOrderServiceImplTest {
     @Test
     @DisplayName("Should throw ORDER_STATUS_ERROR when completing a CANCELLED order")
     void should_throwOrderStatusError_when_completingCancelledOrder() {
-        // Arrange
         OmsSalesOrder order = buildOrder(6L, 1L, OrderConstants.SALES_CANCELLED);
         when(salesOrderMapper.selectById(6L)).thenReturn(order);
 
-        // Act & Assert
         assertThatThrownBy(() -> salesOrderService.complete(1L, 6L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
@@ -309,22 +306,19 @@ class SalesOrderServiceImplTest {
     }
 
     // ===========================================================
-    // 5. cancel — 取消订单
+    // 5. cancel
     // ===========================================================
 
     @Test
     @DisplayName("Should change status to CANCELLED when cancelling a PENDING order")
     void should_cancelOrder_when_statusIsPending() {
-        // Arrange
         OmsSalesOrder order = buildOrder(7L, 1L, OrderConstants.SALES_PENDING);
         order.setOrderSource(OrderConstants.ORDER_SOURCE_MERCHANT);
         order.setPaymentStatus(OrderConstants.PAY_UNPAID);
         when(salesOrderMapper.selectById(7L)).thenReturn(order);
 
-        // Act
-        salesOrderService.cancel(1L, 7L, "SELLER");
+        salesOrderService.cancel(1L, 7L, 100L, null);
 
-        // Assert
         verify(salesOrderMapper).updateById(argThat(o ->
                 OrderConstants.SALES_CANCELLED.equals(o.getStatus())));
     }
@@ -332,12 +326,10 @@ class SalesOrderServiceImplTest {
     @Test
     @DisplayName("Should throw ORDER_STATUS_ERROR when cancelling a COMPLETED order")
     void should_throwOrderStatusError_when_cancellingCompletedOrder() {
-        // Arrange
         OmsSalesOrder order = buildOrder(8L, 1L, OrderConstants.SALES_COMPLETED);
         when(salesOrderMapper.selectById(8L)).thenReturn(order);
 
-        // Act & Assert
-        assertThatThrownBy(() -> salesOrderService.cancel(1L, 8L, "SELLER"))
+        assertThatThrownBy(() -> salesOrderService.cancel(1L, 8L, 100L, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
                         .isEqualTo(ResultCode.ORDER_STATUS_ERROR.getCode()));
@@ -346,29 +338,25 @@ class SalesOrderServiceImplTest {
     @Test
     @DisplayName("Should throw ORDER_STATUS_ERROR when cancelling a SHIPPED order")
     void should_throwOrderStatusError_when_cancellingShippedOrder() {
-        // Arrange
         OmsSalesOrder order = buildOrder(9L, 1L, OrderConstants.SALES_SHIPPED);
         when(salesOrderMapper.selectById(9L)).thenReturn(order);
 
-        // Act & Assert
-        assertThatThrownBy(() -> salesOrderService.cancel(1L, 9L, "SELLER"))
+        assertThatThrownBy(() -> salesOrderService.cancel(1L, 9L, 100L, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
                         .isEqualTo(ResultCode.ORDER_STATUS_ERROR.getCode()));
     }
 
     // ===========================================================
-    // 6. getById — 企业数据隔离
+    // 6. getById
     // ===========================================================
 
     @Test
     @DisplayName("Should throw NOT_FOUND when accessing another enterprise's order")
     void should_throwNotFound_when_accessingOtherEnterpriseOrder() {
-        // Arrange
         OmsSalesOrder order = buildOrder(10L, 999L, OrderConstants.SALES_PENDING);
         when(salesOrderMapper.selectById(10L)).thenReturn(order);
 
-        // Act & Assert — 用企业 1 的 Token 访问企业 999 的订单
         assertThatThrownBy(() -> salesOrderService.getById(1L, 10L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
@@ -378,28 +366,25 @@ class SalesOrderServiceImplTest {
     @Test
     @DisplayName("Should return order when enterprise id matches")
     void should_returnOrder_when_enterpriseIdMatches() {
-        // Arrange
         OmsSalesOrder order = buildOrder(11L, 1L, OrderConstants.SALES_PENDING);
         when(salesOrderMapper.selectById(11L)).thenReturn(order);
         when(salesOrderItemMapper.selectList(any())).thenReturn(List.of());
 
-        // Act & Assert — 无异常
         assertThatNoException().isThrownBy(() -> salesOrderService.getById(1L, 11L));
     }
 
     // ===========================================================
-    // 7. BUG-1: 商家开单扣库存 — create() 时扣减
+    // 7. BUG-1: stock deduction on create
     // ===========================================================
 
     @Test
     @DisplayName("Should deduct stock immediately on merchant order creation (BUG-1 fix)")
     void should_deductStock_when_merchantOrderCreated() {
-        // Arrange
         Long enterpriseId = 1L;
         PmsProduct product = buildProduct(50L, enterpriseId, BigDecimal.TEN, BigDecimal.ONE);
         when(orderNoGenerator.generate(any(), any(), any())).thenReturn("SO20260327001");
         when(productMapper.selectById(50L)).thenReturn(product);
-        when(productMapper.adjustStock(50L, -3)).thenReturn(1); // 1 row affected = success
+        when(productMapper.adjustStock(50L, -3)).thenReturn(1);
 
         SalesOrderRequest.OrderItemRequest item = new SalesOrderRequest.OrderItemRequest();
         item.setProductId(50L);
@@ -408,23 +393,20 @@ class SalesOrderServiceImplTest {
         SalesOrderRequest request = new SalesOrderRequest();
         request.setItems(List.of(item));
 
-        // Act
         salesOrderService.create(enterpriseId, request);
 
-        // Assert — 创建时应立即扣减库存
         verify(productMapper).adjustStock(50L, -3);
     }
 
     @Test
     @DisplayName("Should throw STOCK_INSUFFICIENT when stock is not enough on create (BUG-1)")
     void should_throwStockInsufficient_when_stockNotEnoughOnCreate() {
-        // Arrange
         Long enterpriseId = 1L;
         PmsProduct product = buildProduct(60L, enterpriseId, BigDecimal.TEN, BigDecimal.ONE);
-        product.setStock(0); // 库存为 0
+        product.setStock(0);
         when(orderNoGenerator.generate(any(), any(), any())).thenReturn("SO20260327002");
         when(productMapper.selectById(60L)).thenReturn(product);
-        when(productMapper.adjustStock(60L, -5)).thenReturn(0); // 0 rows = insufficient
+        when(productMapper.adjustStock(60L, -5)).thenReturn(0);
 
         SalesOrderRequest.OrderItemRequest item = new SalesOrderRequest.OrderItemRequest();
         item.setProductId(60L);
@@ -433,19 +415,17 @@ class SalesOrderServiceImplTest {
         SalesOrderRequest request = new SalesOrderRequest();
         request.setItems(List.of(item));
 
-        // Act & Assert
         assertThatThrownBy(() -> salesOrderService.create(enterpriseId, request))
                 .isInstanceOf(BusinessException.class);
     }
 
     // ===========================================================
-    // 8. BUG-1: cancel() 无条件恢复库存
+    // 8. BUG-1: cancel() stock restore
     // ===========================================================
 
     @Test
     @DisplayName("Should restore stock on cancel even when order is UNPAID (BUG-1 fix)")
     void should_restoreStock_when_cancellingUnpaidMerchantOrder() {
-        // Arrange
         OmsSalesOrder order = buildOrder(12L, 1L, OrderConstants.SALES_PENDING);
         order.setOrderSource(OrderConstants.ORDER_SOURCE_MERCHANT);
         order.setPaymentStatus(OrderConstants.PAY_UNPAID);
@@ -456,33 +436,90 @@ class SalesOrderServiceImplTest {
         item.setQuantity(3);
         when(salesOrderItemMapper.selectList(any())).thenReturn(List.of(item));
 
-        // Act
-        salesOrderService.cancel(1L, 12L, "SELLER");
+        salesOrderService.cancel(1L, 12L, 100L, null);
 
-        // Assert — 未付款也应恢复库存（BUG-1 修复前不会）
         verify(productMapper).adjustStock(50L, 3);
     }
 
     // ===========================================================
-    // 9. BUG-1: pay() 不再扣库存
+    // 9. BUG-1: pay() no longer deducts stock
     // ===========================================================
 
     @Test
-    @DisplayName("Should NOT deduct stock on pay — already deducted in create (BUG-1 fix)")
+    @DisplayName("Should NOT deduct stock on pay (BUG-1 fix)")
     void should_notDeductStock_when_payingOrder() {
-        // Arrange
         OmsSalesOrder order = buildOrder(13L, 1L, OrderConstants.SALES_PENDING);
         order.setOrderSource(OrderConstants.ORDER_SOURCE_MERCHANT);
         order.setPaymentStatus(OrderConstants.PAY_UNPAID);
         when(salesOrderMapper.selectById(13L)).thenReturn(order);
 
-        // Act
-        salesOrderService.pay(1L, 13L);
+        salesOrderService.confirmPayment(1L, 13L, 100L, null);
 
-        // Assert — pay() 不应调用 adjustStock
         verify(productMapper, never()).adjustStock(any(), anyInt());
-        // 但应更新支付状态
         verify(salesOrderMapper).updateById(argThat(o ->
                 OrderConstants.PAY_PAID.equals(o.getPaymentStatus())));
+    }
+
+    @Test
+    @DisplayName("Should throw ORDER_STATUS_ERROR when shipping an unpaid order in strict mode")
+    void should_throwOrderStatusError_when_shippingUnpaidOrder() {
+        OmsSalesOrder order = buildOrder(14L, 1L, OrderConstants.SALES_CONFIRMED);
+        order.setPaymentStatus(OrderConstants.PAY_UNPAID);
+        when(salesOrderMapper.selectById(14L)).thenReturn(order);
+
+        assertThatThrownBy(() -> salesOrderService.ship(1L, 14L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
+                        .isEqualTo(ResultCode.ORDER_STATUS_ERROR.getCode()));
+    }
+
+    @Test
+    @DisplayName("Should throw ORDER_STATUS_ERROR when completing an unpaid order in strict mode")
+    void should_throwOrderStatusError_when_completingUnpaidOrder() {
+        OmsSalesOrder order = buildOrder(15L, 1L, OrderConstants.SALES_SHIPPED);
+        order.setPaymentStatus(OrderConstants.PAY_UNPAID);
+        when(salesOrderMapper.selectById(15L)).thenReturn(order);
+
+        assertThatThrownBy(() -> salesOrderService.complete(1L, 15L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
+                        .isEqualTo(ResultCode.ORDER_STATUS_ERROR.getCode()));
+    }
+
+    @Test
+    @DisplayName("Should allow sales role to confirm payment")
+    void should_allowSalesRole_when_confirmingPayment() {
+        OmsSalesOrder order = buildOrder(16L, 1L, OrderConstants.SALES_PENDING);
+        order.setPaymentStatus(OrderConstants.PAY_CLAIMED);
+        when(salesOrderMapper.selectById(16L)).thenReturn(order);
+
+        salesOrderService.confirmPayment(1L, 16L, 36L, "SALES");
+
+        verify(salesOrderMapper).updateById(argThat(o ->
+                OrderConstants.PAY_PAID.equals(o.getPaymentStatus())
+                        && o.getRemark() != null
+                        && o.getRemark().contains("CONFIRM_PAYMENT")
+                        && o.getRemark().contains("SALES:36")));
+    }
+
+    @Test
+    @DisplayName("Should allow sales role to cancel a confirmed paid order with audit remark")
+    void should_allowSalesRole_when_cancellingConfirmedPaidOrder() {
+        OmsSalesOrder order = buildOrder(17L, 1L, OrderConstants.SALES_CONFIRMED);
+        order.setPaymentStatus(OrderConstants.PAY_PAID);
+        when(salesOrderMapper.selectById(17L)).thenReturn(order);
+
+        OmsSalesOrderItem item = new OmsSalesOrderItem();
+        item.setProductId(70L);
+        item.setQuantity(2);
+        when(salesOrderItemMapper.selectList(any())).thenReturn(List.of(item));
+
+        salesOrderService.cancel(1L, 17L, 36L, "SALES");
+
+        verify(salesOrderMapper).updateById(argThat(o ->
+                OrderConstants.SALES_CANCELLED.equals(o.getStatus())
+                        && o.getRemark() != null
+                        && o.getRemark().contains("\u5df2\u63d0\u9192\u7ebf\u4e0b\u9000\u6b3e")
+                        && o.getRemark().contains("SALES:36")));
     }
 }

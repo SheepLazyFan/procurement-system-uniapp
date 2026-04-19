@@ -159,6 +159,7 @@ describe('getPurchaseStatusText — 采购订单状态文字', () => {
 describe('getPaymentStatusText — 支付状态文字', () => {
   test.each([
     ['UNPAID', '未支付'],
+    ['CLAIMED', '待确认收款'],
     ['PAID',   '已支付'],
     ['OTHER',  'OTHER'],
   ])('should return "%s" for status=%s', (status, expected) => {

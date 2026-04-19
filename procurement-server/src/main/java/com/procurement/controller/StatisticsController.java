@@ -1,6 +1,7 @@
 package com.procurement.controller;
 
 import com.procurement.common.result.R;
+import com.procurement.dto.response.DegradableResponse;
 import com.procurement.dto.response.SalesRankingResponse;
 import com.procurement.dto.response.SalesTrendResponse;
 import com.procurement.dto.response.StatOverviewResponse;
@@ -9,6 +10,7 @@ import com.procurement.service.StatisticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -30,13 +32,16 @@ public class StatisticsController {
 
     private final StatisticsService statisticsService;
 
+    @Value("${app.version:unknown}")
+    private String appVersion;
+
     /**
      * 部署验证端点 — 浏览器直接访问即可确认 JAR 版本
      * 访问：http://your-server-ip:8080/api/statistics/version
      */
     @GetMapping("/version")
     public R<String> version() {
-        return R.ok("v2024.03.24-1500-bombproof");
+        return R.ok(appVersion);
     }
 
     @Operation(summary = "经营数据概览")
@@ -49,7 +54,7 @@ public class StatisticsController {
     @Operation(summary = "销售趋势")
     @GetMapping("/sales-trend")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
-    public R<List<SalesTrendResponse>> salesTrend(
+    public R<DegradableResponse<List<SalesTrendResponse>>> salesTrend(
             @AuthenticationPrincipal LoginUser loginUser,
             @RequestParam(defaultValue = "day") String period,
             @RequestParam(required = false) String startDate,
@@ -61,7 +66,7 @@ public class StatisticsController {
     @Operation(summary = "利润趋势")
     @GetMapping("/profit-trend")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
-    public R<List<Map<String, Object>>> profitTrend(
+    public R<DegradableResponse<List<Map<String, Object>>>> profitTrend(
             @AuthenticationPrincipal LoginUser loginUser,
             @RequestParam(defaultValue = "day") String period,
             @RequestParam(required = false) String startDate,
@@ -73,14 +78,14 @@ public class StatisticsController {
     @Operation(summary = "库存统计")
     @GetMapping("/inventory")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMIN', 'WAREHOUSE', 'SALES')")
-    public R<Map<String, Object>> inventory(@AuthenticationPrincipal LoginUser loginUser) {
+    public R<DegradableResponse<Map<String, Object>>> inventory(@AuthenticationPrincipal LoginUser loginUser) {
         return R.ok(statisticsService.getInventoryStats(loginUser.getEnterpriseId()));
     }
 
     @Operation(summary = "商品销售排行")
     @GetMapping("/sales-ranking/products")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
-    public R<List<SalesRankingResponse>> productRanking(
+    public R<DegradableResponse<List<SalesRankingResponse>>> productRanking(
             @AuthenticationPrincipal LoginUser loginUser,
             @RequestParam(defaultValue = "month") String period,
             @RequestParam(defaultValue = "10") Integer limit) {
@@ -91,7 +96,7 @@ public class StatisticsController {
     @Operation(summary = "客户销售排行")
     @GetMapping("/sales-ranking/customers")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMIN')")
-    public R<List<Map<String, Object>>> customerRanking(
+    public R<DegradableResponse<List<Map<String, Object>>>> customerRanking(
             @AuthenticationPrincipal LoginUser loginUser,
             @RequestParam(defaultValue = "month") String period,
             @RequestParam(defaultValue = "10") Integer limit) {

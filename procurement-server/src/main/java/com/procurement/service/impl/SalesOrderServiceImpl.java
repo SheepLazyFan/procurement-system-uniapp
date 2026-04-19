@@ -10,6 +10,7 @@ import com.procurement.dto.response.PageResponse;
 import com.procurement.dto.response.SalesOrderResponse;
 import com.procurement.entity.*;
 import com.procurement.mapper.*;
+import com.procurement.scheduler.RankingAggregateScheduler;
 import com.procurement.service.SalesOrderService;
 import com.procurement.service.StockWarningNotificationService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 
 import com.procurement.common.util.OrderNoGenerator;
+import com.procurement.common.util.OrderAuditHelper;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,12 +38,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SalesOrderServiceImpl implements SalesOrderService {
 
+
     private final SalesOrderMapper salesOrderMapper;
     private final SalesOrderItemMapper salesOrderItemMapper;
     private final ProductMapper productMapper;
     private final CustomerMapper customerMapper;
     private final OrderNoGenerator orderNoGenerator;
     private final StockWarningNotificationService notificationService;
+    private final RankingAggregateScheduler rankingAggregateScheduler;
 
     @Override
     public PageResponse<SalesOrderResponse> listByPage(Long enterpriseId, Integer pageNum, Integer pageSize,
@@ -276,6 +280,9 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         if (!OrderConstants.SALES_CONFIRMED.equals(order.getStatus())) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
         }
+        if (!OrderConstants.PAY_PAID.equals(order.getPaymentStatus())) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "未确认收款的订单不可发货");
+        }
         order.setStatus(OrderConstants.SALES_SHIPPED);
         salesOrderMapper.updateById(order);
     }
@@ -287,18 +294,22 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         if (!OrderConstants.SALES_SHIPPED.equals(order.getStatus())) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR);
         }
+        if (!OrderConstants.PAY_PAID.equals(order.getPaymentStatus())) {
+            throw new BusinessException(ResultCode.ORDER_STATUS_ERROR.getCode(), "未确认收款的订单不可完成");
+        }
         order.setStatus(OrderConstants.SALES_COMPLETED);
         salesOrderMapper.updateById(order);
     }
 
     @Override
     @Transactional
-    public void cancel(Long enterpriseId, Long id, String callerMemberRole) {
+    public void cancel(Long enterpriseId, Long id, Long operatorUserId, String callerMemberRole) {
         OmsSalesOrder order = getAndValidate(enterpriseId, id);
 
-        // 销售员只能取消 PENDING 状态的订单
+        // 销售员只允许取消未发货订单
         String status = order.getStatus();
-        if ("SALES".equals(callerMemberRole) && !OrderConstants.SALES_PENDING.equals(status)) {
+        if ("SALES".equals(callerMemberRole)
+                && !(OrderConstants.SALES_PENDING.equals(status) || OrderConstants.SALES_CONFIRMED.equals(status))) {
             throw new BusinessException(ResultCode.FORBIDDEN);
         }
         if (OrderConstants.SALES_SHIPPED.equals(status)
@@ -334,16 +345,37 @@ public class SalesOrderServiceImpl implements SalesOrderService {
             }
         }
 
+        String previousOrderStatus = order.getStatus();
+        String previousPaymentStatus = order.getPaymentStatus();
         order.setCancelBy("SALES".equals(callerMemberRole)
                 ? OrderConstants.CANCEL_BY_SALES
                 : OrderConstants.CANCEL_BY_MERCHANT);
         order.setStatus(OrderConstants.SALES_CANCELLED);
+        order.setRemark(OrderAuditHelper.appendSystemAuditRemark(order.getRemark(), operatorUserId, resolveOperatorRole(callerMemberRole),
+                "CANCEL_ORDER", previousPaymentStatus, previousPaymentStatus,
+                previousPaymentStatus != null && !OrderConstants.PAY_UNPAID.equals(previousPaymentStatus)
+                        ? "取消订单（已提醒线下退款）"
+                        : "取消订单"));
         salesOrderMapper.updateById(order);
+        log.info("order_audit event=CANCEL_ORDER enterpriseId={} orderId={} orderNo={} operatorId={} operatorRole={} fromPaymentStatus={} toPaymentStatus={} fromOrderStatus={} toOrderStatus={} message={}",
+                order.getEnterpriseId(), order.getId(), order.getOrderNo(), operatorUserId, resolveOperatorRole(callerMemberRole),
+                previousPaymentStatus, previousPaymentStatus, previousOrderStatus, order.getStatus(),
+                previousPaymentStatus != null && !OrderConstants.PAY_UNPAID.equals(previousPaymentStatus)
+                        ? "取消订单（已提醒线下退款）"
+                        : "取消订单");
+
+        // 取消后触发排行摘要表重新聚合（事务提交后异步执行）
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                rankingAggregateScheduler.aggregateToday();
+            }
+        });
     }
 
     @Override
     @Transactional
-    public void pay(Long enterpriseId, Long id) {
+    public void confirmPayment(Long enterpriseId, Long id, Long operatorUserId, String callerMemberRole) {
         OmsSalesOrder order = getAndValidate(enterpriseId, id);
         // 已取消或已完成的订单不允许收款
         if (OrderConstants.SALES_CANCELLED.equals(order.getStatus())
@@ -355,8 +387,14 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         }
 
         // 库存已在 create() 统一扣减，收款仅更新支付状态
+        String fromPaymentStatus = order.getPaymentStatus();
         order.setPaymentStatus(OrderConstants.PAY_PAID);
+        order.setRemark(OrderAuditHelper.appendSystemAuditRemark(order.getRemark(), operatorUserId, resolveOperatorRole(callerMemberRole),
+                "CONFIRM_PAYMENT", fromPaymentStatus, OrderConstants.PAY_PAID, "商家侧确认收款"));
         salesOrderMapper.updateById(order);
+        log.info("order_audit event=CONFIRM_PAYMENT enterpriseId={} orderId={} orderNo={} operatorId={} operatorRole={} fromPaymentStatus={} toPaymentStatus={} fromOrderStatus={} toOrderStatus={} message={}",
+                order.getEnterpriseId(), order.getId(), order.getOrderNo(), operatorUserId, resolveOperatorRole(callerMemberRole),
+                fromPaymentStatus, order.getPaymentStatus(), order.getStatus(), order.getStatus(), "商家侧确认收款");
     }
 
     @Override
@@ -420,6 +458,10 @@ public class SalesOrderServiceImpl implements SalesOrderService {
             throw new BusinessException(ResultCode.NOT_FOUND);
         }
         return order;
+    }
+
+    private String resolveOperatorRole(String callerMemberRole) {
+        return StringUtils.hasText(callerMemberRole) ? callerMemberRole : "SELLER";
     }
 
 

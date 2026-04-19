@@ -4,6 +4,8 @@ import com.procurement.common.constant.OrderConstants;
 import com.procurement.common.exception.BusinessException;
 import com.procurement.common.result.ResultCode;
 import com.procurement.dto.request.BuyerOrderRequest;
+import com.procurement.entity.CrmCustomer;
+import com.procurement.entity.OmsSalesOrder;
 import com.procurement.entity.PmsProduct;
 import com.procurement.entity.SysEnterprise;
 import com.procurement.entity.SysUser;
@@ -291,6 +293,92 @@ class BuyerServiceImplTest {
         assertThat(result.get("enterpriseName")).isEqualTo("测试企业-1");
         assertThat(result.get("categoryCount")).isEqualTo(3L);
         assertThat(result.get("productCount")).isEqualTo(15L);
+    }
+
+    @Test
+    @DisplayName("Should downgrade legacy payOrder to CLAIMED instead of PAID")
+    void should_downgradeLegacyPayOrder_toClaimed() {
+        // Arrange
+        Long buyerId = 201L;
+        OmsSalesOrder order = new OmsSalesOrder();
+        order.setId(301L);
+        order.setEnterpriseId(1L);
+        order.setOrderNo("SO301");
+        order.setCustomerId(401L);
+        order.setStatus(OrderConstants.SALES_PENDING);
+        order.setPaymentStatus(OrderConstants.PAY_UNPAID);
+
+        CrmCustomer customer = new CrmCustomer();
+        customer.setId(401L);
+        customer.setWxOpenid("openid_201");
+
+        when(userMapper.selectById(buyerId)).thenReturn(buildBuyer(buyerId, "openid_201"));
+        when(salesOrderMapper.selectById(301L)).thenReturn(order);
+        when(customerMapper.selectById(401L)).thenReturn(customer);
+
+        // Act
+        buyerService.payOrder(buyerId, 301L);
+
+        // Assert
+        verify(salesOrderMapper).updateById(argThat(o ->
+                OrderConstants.PAY_CLAIMED.equals(o.getPaymentStatus())
+                        && o.getRemark() != null
+                        && o.getRemark().contains("LEGACY_PAY_COMPAT")
+                        && o.getRemark().contains("BUYER:201")));
+    }
+
+    @Test
+    @DisplayName("Should throw ORDER_STATUS_ERROR when buyer claims paid on cancelled order")
+    void should_throwOrderStatusError_when_claimPaidOnCancelledOrder() {
+        // Arrange
+        Long buyerId = 202L;
+        OmsSalesOrder order = new OmsSalesOrder();
+        order.setId(302L);
+        order.setEnterpriseId(1L);
+        order.setCustomerId(402L);
+        order.setStatus(OrderConstants.SALES_CANCELLED);
+        order.setPaymentStatus(OrderConstants.PAY_UNPAID);
+
+        CrmCustomer customer = new CrmCustomer();
+        customer.setId(402L);
+        customer.setWxOpenid("openid_202");
+
+        when(userMapper.selectById(buyerId)).thenReturn(buildBuyer(buyerId, "openid_202"));
+        when(salesOrderMapper.selectById(302L)).thenReturn(order);
+        when(customerMapper.selectById(402L)).thenReturn(customer);
+
+        // Act & Assert
+        assertThatThrownBy(() -> buyerService.claimPaid(buyerId, 302L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
+                        .isEqualTo(ResultCode.ORDER_STATUS_ERROR.getCode()));
+    }
+
+    @Test
+    @DisplayName("Should throw ORDER_STATUS_ERROR when buyer cancels claimed order")
+    void should_throwOrderStatusError_when_cancellingClaimedOrder() {
+        // Arrange
+        Long buyerId = 203L;
+        OmsSalesOrder order = new OmsSalesOrder();
+        order.setId(303L);
+        order.setEnterpriseId(1L);
+        order.setCustomerId(403L);
+        order.setStatus(OrderConstants.SALES_PENDING);
+        order.setPaymentStatus(OrderConstants.PAY_CLAIMED);
+
+        CrmCustomer customer = new CrmCustomer();
+        customer.setId(403L);
+        customer.setWxOpenid("openid_203");
+
+        when(userMapper.selectById(buyerId)).thenReturn(buildBuyer(buyerId, "openid_203"));
+        when(salesOrderMapper.selectById(303L)).thenReturn(order);
+        when(customerMapper.selectById(403L)).thenReturn(customer);
+
+        // Act & Assert
+        assertThatThrownBy(() -> buyerService.cancelOrder(buyerId, 303L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
+                        .isEqualTo(ResultCode.ORDER_STATUS_ERROR.getCode()));
     }
 
     // ===========================================================

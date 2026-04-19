@@ -28,7 +28,7 @@
 
 ```bash
 # 1. 初始化数据库
-mysql -u root -p < sql/schema.sql
+mysql -u root -p < sql/init.sql
 
 # 2. 启动应用（使用 dev profile，连接本地 MySQL/Redis）
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
@@ -126,6 +126,10 @@ bash scripts/deploy.sh --skip-build
 ```
 
 > **要求**：本地需要 JDK 21 + Maven，且 SSH 已配置免密登录到服务器。
+
+> **开发阶段优化**：部署脚本现在会先提示 `sql/` 目录下的增量 SQL，但不会自动执行。后端启动时也会检查关键历史字段是否存在，如果生产库漏跑 SQL，会在启动阶段直接失败并给出缺失字段与脚本提示。
+>
+> 数据库版本清单统一维护在 [sql/migration-manifest.md](/e:/WorkSpace/DevSpace/procurement system uniapp---600/procurement-server/sql/migration-manifest.md)。当前后端期望的 schema version 也会打印在启动日志里，便于发版时快速核对。
 
 ---
 
@@ -227,6 +231,15 @@ VITE_API_BASE=https://your-domain.com/api
 
 ---
 
+## 项目移植
+
+> 将项目部署到新服务器/新微信小程序账号时，需逐项更改配置。
+> **完整的 29 项移植配置更改表** 请参见 [根目录 README.md — 项目移植配置更改表](../README.md#项目移植配置更改表)。
+
+以下为后端环境变量速查（详细说明见上方链接）：
+
+---
+
 ## 环境变量完整说明
 
 | 变量 | 默认值 | 必填 | 说明 |
@@ -260,7 +273,7 @@ VITE_API_BASE=https://your-domain.com/api
 mysql -u root -p -e "CREATE DATABASE procurement_db DEFAULT CHARSET utf8mb4;"
 
 # 执行建表脚本
-mysql -u root -p procurement_db < sql/schema.sql
+mysql -u root -p procurement_db < sql/init.sql
 ```
 
 ---

@@ -52,6 +52,7 @@ CREATE TABLE `sys_enterprise` (
   `invite_code`   VARCHAR(20)   DEFAULT NULL             COMMENT '团队邀请码',
   `logo_url`      VARCHAR(500)  DEFAULT NULL             COMMENT '企业 Logo URL',
   `payment_qr_url` VARCHAR(500) DEFAULT NULL            COMMENT '收款二维码图片URL',
+  `session_invalid_after` DATETIME DEFAULT NULL         COMMENT '企业会话失效时间，恢复等高风险操作后用于强制重新登录',
   `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP           COMMENT '创建时间',
   `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `is_deleted`    TINYINT(1)    NOT NULL DEFAULT 0       COMMENT '逻辑删除',

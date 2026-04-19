@@ -76,7 +76,7 @@ public class BuyerController {
         return R.ok(buyerService.createOrder(loginUser.getUserId(), request));
     }
 
-    @Operation(summary = "伪支付")
+    @Operation(summary = "兼容旧版付款接口（降级为付款声明）")
     @PutMapping("/orders/{id}/pay")
     public R<Void> payOrder(@AuthenticationPrincipal LoginUser loginUser,
                              @PathVariable Long id) {

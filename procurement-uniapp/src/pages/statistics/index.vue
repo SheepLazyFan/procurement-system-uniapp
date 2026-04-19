@@ -10,24 +10,29 @@
       <!-- 1. 顶部数据驾驶舱 (Hero Header) -->
       <view class="hero-card animate-fade-up" style="animation-delay: 0s;">
         <text class="hero-title">今日销售 (元)</text>
-        <text class="hero-main-value num-font">¥{{ overview.todaySales || '0.00' }}</text>
+        <text class="hero-main-value num-font">¥{{ errors.overview ? '--' : (overview.todaySales || '0.00') }}</text>
         
         <view class="hero-sub-metrics">
           <view class="hero-sub-item">
             <text class="hero-sub-label">今日利润</text>
-            <text class="hero-sub-value num-font">+{{ overview.todayProfit || '0.00' }}</text>
+            <text class="hero-sub-value num-font">{{ errors.overview ? '--' : ('+' + (overview.todayProfit || '0.00')) }}</text>
           </view>
           <view class="hero-divider"></view>
           <view class="hero-sub-item">
             <text class="hero-sub-label">本月销售</text>
-            <text class="hero-sub-value num-font">{{ overview.monthSales || '0.00' }}</text>
+            <text class="hero-sub-value num-font">{{ errors.overview ? '--' : (overview.monthSales || '0.00') }}</text>
           </view>
           <view class="hero-divider"></view>
           <view class="hero-sub-item">
             <text class="hero-sub-label">本月利润</text>
-            <text class="hero-sub-value num-font">+{{ overview.monthProfit || '0.00' }}</text>
+            <text class="hero-sub-value num-font">{{ errors.overview ? '--' : ('+' + (overview.monthProfit || '0.00')) }}</text>
           </view>
         </view>
+      </view>
+
+      <view v-if="showGlobalWarning" class="global-warning animate-fade-up" style="animation-delay: 0.05s;">
+        <text class="global-warning__title">部分统计数据加载失败</text>
+        <text class="global-warning__text">{{ globalWarningText }}</text>
       </view>
 
       <!-- 2. 模块化网格 (Bento Box) -->
@@ -36,7 +41,7 @@
           <view class="bento-icon-wrapper bg-blue-light">
             <view class="svg-icon-box"></view>
           </view>
-          <text class="bento-value num-font">¥{{ overview.inventoryValue || '0.00' }}</text>
+          <text class="bento-value num-font">¥{{ errors.overview ? '--' : (overview.inventoryValue || '0.00') }}</text>
           <text class="bento-label">库存总值</text>
         </view>
         
@@ -44,7 +49,7 @@
           <view class="bento-icon-wrapper bg-purple-light">
             <view class="svg-icon-chart"></view>
           </view>
-          <text class="bento-value num-font">{{ overview.inventoryCount || 0 }}</text>
+          <text class="bento-value num-font">{{ errors.overview ? '--' : (overview.inventoryCount || 0) }}</text>
           <text class="bento-label">库存商品数</text>
         </view>
 
@@ -52,7 +57,7 @@
           <view class="bento-icon-wrapper bg-orange-light">
             <view class="svg-icon-timer"></view>
           </view>
-          <text class="bento-value num-font">{{ overview.pendingOrderCount || 0 }}</text>
+          <text class="bento-value num-font">{{ errors.overview ? '--' : (overview.pendingOrderCount || 0) }}</text>
           <text class="bento-label">待处理订单</text>
         </view>
 
@@ -61,7 +66,7 @@
             <view class="svg-icon-alert"></view>
           </view>
           <view class="bento-value-row">
-            <text class="bento-value num-font text-danger">{{ overview.stockWarningCount || 0 }}</text>
+            <text class="bento-value num-font text-danger">{{ errors.overview ? '--' : (overview.stockWarningCount || 0) }}</text>
             <text class="bento-arrow">›</text>
           </view>
           <text class="bento-label">库存预警</text>
@@ -85,8 +90,13 @@
           </view>
         </view>
 
+        <view v-if="errors.trend" class="module-error">
+          <text class="module-error__title">销售趋势加载失败</text>
+          <text class="module-error__text">{{ errors.trend }}</text>
+          <button class="module-error__btn" @tap="loadTrend">重试</button>
+        </view>
         <!-- 图表区域 -->
-        <view v-if="trendData.length" class="chart-area">
+        <view v-else-if="trendData.length" class="chart-area">
           <view class="bar-chart">
             <view class="y-col">
               <view class="y-labels">
@@ -159,20 +169,68 @@
         </view>
       </view>
 
-      <!-- 4. 商品排行 -->
+      <!-- 4. 排行模块 — 共用时间切换器 -->
       <view class="saas-card animate-fade-up" style="animation-delay: 0.3s;">
-        <text class="section-title">商品销售排行</text>
-        <view class="ranking-list">
+        <view class="chart-header">
+          <text class="section-title" style="margin-bottom:0;">销售排行</text>
+          <view class="segmented-control">
+            <view class="segment-slider segment-slider--3" :class="'rk-slider-' + rankingPeriod"></view>
+            <text
+              v-for="p in rankingPeriodOptions"
+              :key="p.value"
+              class="segment-tab"
+              :class="{ 'segment-tab--active': rankingPeriod === p.value }"
+              @tap="switchRankingPeriod(p.value)"
+            >{{ p.label }}</text>
+          </view>
+        </view>
+
+        <!-- 商品销售排行 -->
+        <text class="ranking-subtitle">商品排行</text>
+        <view v-if="errors.productRanking" class="module-error module-error--compact">
+          <text class="module-error__title">商品排行加载失败</text>
+          <text class="module-error__text">{{ errors.productRanking }}</text>
+          <button class="module-error__btn" @tap="loadProductRanking">重试</button>
+        </view>
+        <view v-else class="ranking-list" :class="{ 'ranking-list--loading': rankingLoading }">
           <view v-for="(item, idx) in ranking" :key="idx" class="ranking-item">
             <view class="ranking-item__left">
               <view class="rank-badge" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</view>
-              <text class="ranking-item__name">{{ item.productName }}</text>
+              <view class="ranking-item__customer">
+                <text class="ranking-item__name">{{ item.productName }}</text>
+                <text class="ranking-item__meta">{{ item.totalQuantity || 0 }} 件</text>
+              </view>
             </view>
             <text class="ranking-item__amount num-font text-brand">¥{{ item.totalAmount }}</text>
           </view>
         </view>
-        <view v-if="loading" class="loading-tip">加载中...</view>
-        <EmptyState v-else-if="ranking.length === 0" text="暂无数据" />
+        <EmptyState v-if="!loading && !rankingLoading && !errors.productRanking && ranking.length === 0" text="暂无商品排行数据" />
+
+        <!-- 客户销售排行 -->
+        <text class="ranking-subtitle" style="margin-top: 40rpx;">客户排行</text>
+        <view v-if="errors.customerRanking" class="module-error module-error--compact">
+          <text class="module-error__title">客户排行加载失败</text>
+          <text class="module-error__text">{{ errors.customerRanking }}</text>
+          <button class="module-error__btn" @tap="loadCustomerRanking">重试</button>
+        </view>
+        <view v-else class="ranking-list" :class="{ 'ranking-list--loading': rankingLoading }">
+          <view v-for="(item, idx) in customerRanking" :key="'customer-' + idx" class="ranking-item">
+            <view class="ranking-item__left">
+              <view class="rank-badge" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</view>
+              <view class="ranking-item__customer">
+                <text class="ranking-item__name">{{ item.customerName || '未知客户' }}</text>
+                <text class="ranking-item__meta">{{ item.orderCount || 0 }} 单</text>
+              </view>
+            </view>
+            <text class="ranking-item__amount num-font text-brand">¥{{ item.totalAmount }}</text>
+          </view>
+        </view>
+        <EmptyState v-if="!loading && !rankingLoading && !errors.customerRanking && customerRanking.length === 0" text="暂无客户排行数据" />
+
+        <!-- 数据新鲜度提示 -->
+        <view v-if="rankingRefreshedAt" class="ranking-freshness">
+          <text class="ranking-freshness__text">数据更新至 {{ rankingRefreshedAt }}</text>
+        </view>
       </view>
 
       <view class="safe-bottom-space"></view>
@@ -181,7 +239,7 @@
 </template>
 
 <script>
-import { getOverview, getSalesTrend, getSalesRanking } from '@/api/statistics'
+import { getOverview, getSalesTrend, getSalesRanking, getCustomerRanking } from '@/api/statistics'
 import { guardTabPage, getNoAccessTip } from '@/utils/permission'
 import EmptyState from '@/components/common/EmptyState.vue'
 
@@ -193,13 +251,29 @@ export default {
       noAccessTip: '',
       overview: {},
       ranking: [],
+      customerRanking: [],
       trendData: [],
+      rankingRefreshedAt: '',
       selectedBarIdx: -1,
       loading: false,
-      period: 'week',
+      errors: {
+        overview: '',
+        trend: '',
+        productRanking: '',
+        customerRanking: ''
+      },
+      serverWarnings: [],
+      rankingPeriod: 'month',
+      rankingLoading: false,
+      rankingPeriodOptions: [
+        { label: '历史', value: 'all' },
+        { label: '本月', value: 'month' },
+        { label: '本周', value: 'week' }
+      ],
+      period: 'month',
       periodOptions: [
-        { label: '近7天', value: 'week' },
-        { label: '近30天', value: 'month' }
+        { label: '本月', value: 'month' },
+        { label: '本周', value: 'week' }
       ]
     }
   },
@@ -224,6 +298,15 @@ export default {
     },
     trendTotalOrders() {
       return this.trendData.reduce((s, d) => s + (Number(d.orderCount) || 0), 0)
+    },
+    showGlobalWarning() {
+      return Boolean(this.overview?.degraded || this.errors.overview || this.errors.trend || this.errors.productRanking || this.errors.customerRanking || this.serverWarnings.length)
+    },
+    globalWarningText() {
+      if (this.errors.overview) return this.errors.overview
+      if (this.overview?.warnings?.length) return this.overview.warnings[0]
+      if (this.serverWarnings.length) return this.serverWarnings[0]
+      return '当前页面数据不完整，部分模块未成功加载。'
     }
   },
   onShow() {
@@ -238,15 +321,19 @@ export default {
   methods: {
     async loadData() {
       this.loading = true
+      this.serverWarnings = []
+      this.errors = {
+        overview: '',
+        trend: '',
+        productRanking: '',
+        customerRanking: ''
+      }
 
-      // 每个 API 独立调用、独立容错，一个失败不影响其他
-      // 1) 概览数据
       try {
         const overviewData = await getOverview()
         this.overview = overviewData || {}
-        // 设置库存 tabBar 角标
         const warnCount = this.overview.stockWarningCount || 0
-        if (warnCount > 0) {
+        if (!this.errors.overview && warnCount > 0) {
           uni.setTabBarBadge({ index: 0, text: String(warnCount) })
         } else {
           uni.removeTabBarBadge({ index: 0 })
@@ -254,40 +341,89 @@ export default {
       } catch (e) {
         console.warn('[statistics] 概览数据加载失败:', e && e.message || e)
         this.overview = {}
+        this.errors.overview = e?.message || '经营概览加载失败，请稍后重试'
+        uni.removeTabBarBadge({ index: 0 })
       }
 
-      // 2) 商品排行
-      try {
-        const rankingData = await getSalesRanking({ period: 'month', limit: 10 })
-        this.ranking = rankingData || []
-      } catch (e) {
-        console.warn('[statistics] 排行数据加载失败:', e && e.message || e)
-        this.ranking = []
-      }
+      await Promise.all([
+        this.loadProductRanking(),
+        this.loadCustomerRanking(),
+        this.loadTrend()
+      ])
 
       this.loading = false
-
-      // 3) 趋势图表（独立加载）
-      this.loadTrend()
+    },
+    async loadProductRanking() {
+      try {
+        const res = await getSalesRanking({ period: this.rankingPeriod, limit: 10 })
+        this.ranking = res?.data || res || []
+        this.errors.productRanking = ''
+        this.rankingRefreshedAt = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        if (res?.degraded && res?.warnings?.length) {
+          this.serverWarnings.push(...res.warnings)
+        }
+      } catch (e) {
+        console.warn('[statistics] 商品排行加载失败:', e && e.message || e)
+        this.ranking = []
+        this.errors.productRanking = e?.message || '商品排行加载失败，请重试'
+      }
+    },
+    async loadCustomerRanking() {
+      try {
+        const res = await getCustomerRanking({ period: this.rankingPeriod, limit: 10 })
+        this.customerRanking = res?.data || res || []
+        this.errors.customerRanking = ''
+        this.rankingRefreshedAt = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        if (res?.degraded && res?.warnings?.length) {
+          this.serverWarnings.push(...res.warnings)
+        }
+      } catch (e) {
+        console.warn('[statistics] 客户排行加载失败:', e && e.message || e)
+        this.customerRanking = []
+        this.errors.customerRanking = e?.message || '客户排行加载失败，请重试'
+      }
     },
     async loadTrend() {
       this.selectedBarIdx = -1
       try {
-        const days = this.period === 'week' ? 7 : 30
-        const end = this.formatDate(new Date())
-        const startD = new Date()
-        startD.setDate(startD.getDate() - days + 1)
+        const now = new Date()
+        const end = this.formatDate(now)
+        let startD
+        if (this.period === 'week') {
+          // 本周一
+          startD = new Date(now)
+          const dayOfWeek = startD.getDay() || 7 // Sunday=0 -> 7
+          startD.setDate(startD.getDate() - dayOfWeek + 1)
+        } else {
+          // 本月 1 号
+          startD = new Date(now.getFullYear(), now.getMonth(), 1)
+        }
         const start = this.formatDate(startD)
         const res = await getSalesTrend({ period: 'day', startDate: start, endDate: end })
-        this.trendData = res || []
+        this.trendData = res?.data || res || []
+        this.errors.trend = ''
+        if (res?.degraded && res?.warnings?.length) {
+          this.serverWarnings.push(...res.warnings)
+        }
       } catch (e) {
         console.warn('[statistics] 趋势数据加载失败:', e && e.message || e)
         this.trendData = []
+        this.errors.trend = e?.message || '销售趋势加载失败，请重试'
       }
     },
     switchPeriod(p) {
       this.period = p
       this.loadTrend()
+    },
+    async switchRankingPeriod(p) {
+      if (this.rankingLoading || this.rankingPeriod === p) return
+      this.rankingPeriod = p
+      this.rankingLoading = true
+      await Promise.all([
+        this.loadProductRanking(),
+        this.loadCustomerRanking()
+      ])
+      this.rankingLoading = false
     },
     selectBar(idx) {
       this.selectedBarIdx = this.selectedBarIdx === idx ? -1 : idx
@@ -461,8 +597,14 @@ export default {
   transition: transform 0.3s cubic-bezier(0.25, 1.25, 0.2, 1);
   box-shadow: 0 4rpx 12rpx rgba(41, 121, 255, 0.4);
 }
-.slider-week { transform: translateX(0); }
-.slider-month { transform: translateX(100%); }
+.segment-slider--3 { width: 33.33%; }
+/* 趋势 2-segment: 本月(左) / 本周(右) */
+.slider-month { transform: translateX(0); }
+.slider-week  { transform: translateX(100%); }
+/* 排行 3-segment: 历史(左) / 本月(中) / 本周(右) */
+.rk-slider-all   { transform: translateX(0); }
+.rk-slider-month { transform: translateX(100%); }
+.rk-slider-week  { transform: translateX(200%); }
 
 .chart-area { margin-top: 12rpx; }
 .bar-chart { display: flex; padding-top: 20rpx; }
@@ -528,7 +670,15 @@ export default {
 .capsule--green .capsule-value { color: var(--color-success); }
 .capsule--purple .capsule-value { color: #9c27b0; }
 
-.ranking-list { display: flex; flex-direction: column; gap: 24rpx; }
+.ranking-subtitle {
+  font-size: 26rpx; font-weight: 700; color: var(--text-secondary);
+  margin-bottom: 20rpx; margin-top: 28rpx; display: block;
+}
+.ranking-list {
+  display: flex; flex-direction: column; gap: 24rpx;
+  transition: opacity 0.25s ease;
+}
+.ranking-list--loading { opacity: 0.4; pointer-events: none; }
 .ranking-item { display: flex; justify-content: space-between; align-items: center; }
 .ranking-item__left { display: flex; align-items: center; gap: 20rpx; }
 .rank-badge {
@@ -541,7 +691,74 @@ export default {
 .rank-2 { background: linear-gradient(135deg, #ff9c00, #ffb84d); color: #fff; box-shadow: 0 4rpx 12rpx rgba(255,156,0,0.3); }
 .rank-3 { background: linear-gradient(135deg, #2979ff, #699fff); color: #fff; box-shadow: 0 4rpx 12rpx rgba(41,121,255,0.3); }
 .ranking-item__name { font-size: 28rpx; font-weight: 600; color: var(--text-primary); }
+.ranking-item__customer { display: flex; flex-direction: column; gap: 6rpx; }
+.ranking-item__meta { font-size: 22rpx; color: var(--text-tertiary); }
 .ranking-item__amount { font-size: 30rpx; font-weight: 800; display: block; }
+
+.global-warning {
+  margin-bottom: 24rpx;
+  padding: 24rpx 28rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 152, 0, 0.12);
+  border: 1rpx solid rgba(255, 152, 0, 0.2);
+}
+.global-warning__title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #b45309;
+  margin-bottom: 8rpx;
+}
+.global-warning__text {
+  font-size: 24rpx;
+  color: #9a6700;
+  line-height: 1.6;
+}
+
+.module-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12rpx;
+  padding: 32rpx 8rpx 12rpx;
+}
+.module-error--compact {
+  padding: 16rpx 0 8rpx;
+}
+.module-error__title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.module-error__text {
+  font-size: 24rpx;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.module-error__btn {
+  margin: 8rpx 0 0;
+  height: 68rpx;
+  line-height: 68rpx;
+  padding: 0 28rpx;
+  border-radius: 34rpx;
+  background: var(--brand-primary-light);
+  color: var(--brand-primary);
+  font-size: 24rpx;
+  font-weight: 600;
+  border: none;
+}
+
+/* 排行数据新鲜度提示 */
+.ranking-freshness {
+  text-align: center;
+  padding: 16rpx 0 4rpx;
+  margin-top: 12rpx;
+}
+.ranking-freshness__text {
+  font-size: 22rpx;
+  color: var(--text-light);
+  letter-spacing: 0.5px;
+}
 
 .safe-bottom-space { content:''; display: block; width: 100%; height: 60rpx; }
 </style>

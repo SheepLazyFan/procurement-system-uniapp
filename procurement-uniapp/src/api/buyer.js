@@ -23,7 +23,7 @@ export const getProductDetail = (id) =>
 export const createBuyerOrder = (data) =>
   post('/buyer/orders', data, { showLoading: true })
 
-/** 伪支付 */
+/** 兼容旧版付款接口，后端会自动降级为付款声明 */
 export const payBuyerOrder = (id) =>
   put(`/buyer/orders/${id}/pay`)
 

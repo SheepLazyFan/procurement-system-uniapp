@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.procurement.mapper.StatDailyCustomerSalesMapper">
+
+    <!-- 幂等批量写入（INSERT ON DUPLICATE KEY UPDATE） -->
+    <insert id="insertOrUpdate">
+        INSERT INTO stat_daily_customer_sales
+            (enterprise_id, stat_date, customer_id, customer_name, order_count, sum_amount)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.enterpriseId}, #{item.statDate}, #{item.customerId}, #{item.customerName},
+             #{item.orderCount}, #{item.sumAmount})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            customer_name = VALUES(customer_name),
+            order_count   = VALUES(order_count),
+            sum_amount    = VALUES(sum_amount),
+            updated_at    = NOW()
+    </insert>
+
+    <!-- 从摘要表查询客户排行 Top N -->
+    <select id="selectRanking" resultType="java.util.Map">
+        SELECT customer_name                     AS customerName,
+               COALESCE(SUM(order_count), 0)     AS orderCount,
+               COALESCE(SUM(sum_amount), 0)      AS totalAmount
+        FROM stat_daily_customer_sales
+        WHERE enterprise_id = #{enterpriseId}
+          <if test="startDate != null">AND stat_date &gt;= #{startDate}</if>
+          <if test="endDate != null">AND stat_date &lt;= #{endDate}</if>
+        GROUP BY customer_name
+        ORDER BY totalAmount DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

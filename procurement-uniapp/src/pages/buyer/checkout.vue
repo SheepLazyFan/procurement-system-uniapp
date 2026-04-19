@@ -1,47 +1,48 @@
 <template>
-  <view class="page-checkout container">
+  <view class="page-checkout">
     <NavBar title="确认订单" />
 
-    <!-- 收货信息 -->
-    <view class="card">
-      <view class="section-title">收货信息</view>
-      <view class="form-group">
-        <text class="form-label">联系人 *</text>
-        <input class="form-input" v-model="form.contactName" placeholder="请输入联系人姓名" />
+    <view class="container">
+      <!-- 收货信息 -->
+      <view class="form-card">
+        <text class="form-card__title">收货信息</text>
+        <view class="form-row">
+          <text class="form-row__label">联系人 <text class="required">*</text></text>
+          <input class="form-row__input" v-model="form.contactName" placeholder="请输入联系人姓名" />
+        </view>
+        <view class="form-row">
+          <text class="form-row__label">联系电话 <text class="required">*</text></text>
+          <input class="form-row__input" v-model="form.contactPhone" placeholder="请输入联系电话" type="number" />
+        </view>
+        <view class="form-row">
+          <text class="form-row__label">收货地址</text>
+          <input class="form-row__input" v-model="form.address" placeholder="请输入收货地址" />
+        </view>
+        <view class="form-row form-row--textarea">
+          <text class="form-row__label">备注</text>
+          <textarea class="form-row__textarea" v-model="form.remark" placeholder="留言备注（选填）" />
+        </view>
       </view>
-      <view class="form-group">
-        <text class="form-label">联系电话 *</text>
-        <input class="form-input" v-model="form.contactPhone" placeholder="请输入联系电话" type="number" />
-      </view>
-      <view class="form-group">
-        <text class="form-label">收货地址</text>
-        <input class="form-input" v-model="form.address" placeholder="请输入收货地址" />
-      </view>
-      <view class="form-group">
-        <text class="form-label">备注</text>
-        <textarea class="form-textarea" v-model="form.remark" placeholder="留言备注（选填）" />
-      </view>
-    </view>
 
-    <!-- 订单商品 -->
-    <view class="card">
-      <view class="section-title">订单商品</view>
-      <view v-for="item in cartItems" :key="item.productId" class="order-item">
-        <text class="item-name">{{ item.name }}</text>
-        <text class="item-qty">×{{ item.quantity }}</text>
-        <text class="item-amount">¥{{ (item.price * item.quantity).toFixed(2) }}</text>
+      <!-- 订单商品 -->
+      <view class="form-card">
+        <text class="form-card__title">订单商品</text>
+        <view v-for="item in cartItems" :key="item.productId" class="order-line">
+          <text class="order-line__name">{{ item.name }}</text>
+          <text class="order-line__qty">×{{ item.quantity }}</text>
+          <text class="order-line__amount">¥{{ (item.price * item.quantity).toFixed(2) }}</text>
+        </view>
+        <view class="order-total">
+          <text class="order-total__label">合计</text>
+          <text class="order-total__price">¥{{ totalAmount.toFixed(2) }}</text>
+        </view>
       </view>
-      <view class="divider"></view>
-      <view class="total-row">
-        <text class="total-label">合计</text>
-        <text class="total-price">¥{{ totalAmount.toFixed(2) }}</text>
-      </view>
-    </view>
 
-    <!-- 提交按钮 -->
-    <button class="btn-primary" @tap="handleSubmit" :loading="submitting">
-      {{ submitting ? '支付中...' : '确认支付' }}
-    </button>
+      <!-- 提交按钮 -->
+      <button class="btn-submit" hover-class="btn-submit--hover" @tap="handleSubmit" :loading="submitting">
+        {{ submitting ? '提交中...' : '提交订单' }}
+      </button>
+    </view>
   </view>
 </template>
 
@@ -56,7 +57,6 @@ export default {
   data() {
     return {
       enterpriseId: '',
-      /** 非 null 时为立即购买模式，直接用此商品结算，不读取/清空购物车 */
       buyNowItem: null,
       form: { contactName: '', contactPhone: '', address: '', remark: '' },
       submitting: false
@@ -74,38 +74,27 @@ export default {
   },
   onLoad(query) {
     this.enterpriseId = query.enterpriseId || ''
-
-    // 立即购买模式：读取暂存商品，读后立即删除，避免二次误用
     if (query.buyNow === '1') {
       const item = uni.getStorageSync('buyNowItem')
-      if (item && item.productId) {
-        this.buyNowItem = item
-      }
+      if (item && item.productId) this.buyNowItem = item
       uni.removeStorageSync('buyNowItem')
     }
-
-    // 登录检查
     const userStore = useUserStore()
     if (!userStore.isLoggedIn) {
       uni.showModal({
         title: '请先登录',
         content: '下单需要登录账号',
         showCancel: false,
-        success: () => {
-          uni.navigateTo({ url: '/pages/auth/login' })
-        }
+        success: () => { uni.navigateTo({ url: '/pages/auth/login' }) }
       })
       return
     }
-
-    // 还原上次填写的收货地址
     const savedAddr = uni.getStorageSync('buyerAddress')
     if (savedAddr) {
       this.form.contactName = savedAddr.contactName || ''
       this.form.contactPhone = savedAddr.contactPhone || ''
       this.form.address = savedAddr.address || ''
     } else {
-      // 首次使用：预填用户信息
       const user = userStore.userInfo
       if (user.phone) this.form.contactPhone = user.phone
       if (user.nickName) this.form.contactName = user.nickName
@@ -116,7 +105,6 @@ export default {
       if (!this.form.contactName) return uni.showToast({ title: '请输入联系人', icon: 'none' })
       if (!this.form.contactPhone) return uni.showToast({ title: '请输入联系电话', icon: 'none' })
       if (!this.cartItems.length) return uni.showToast({ title: '购物车为空', icon: 'none' })
-
       this.submitting = true
       try {
         const orderData = {
@@ -132,21 +120,13 @@ export default {
           }))
         }
         const res = await createBuyerOrder(orderData)
-
-        // 保存本次收货地址，下次自动填充
         uni.setStorageSync('buyerAddress', {
           contactName: this.form.contactName,
           contactPhone: this.form.contactPhone,
           address: this.form.address
         })
-
-        // 先记录金额，再清购物车（清空后 totalAmount 会变 0）
         const finalAmount = this.totalAmount
-        // 立即购买模式不清空购物车，购物车模式才清
-        if (!this.buyNowItem) {
-          useCartStore().clearCart()
-        }
-        // 跳转支付成功页
+        if (!this.buyNowItem) useCartStore().clearCart()
         uni.redirectTo({
           url: `/pages/buyer/pay-success?orderId=${res?.id || ''}&amount=${finalAmount.toFixed(2)}&enterpriseId=${this.enterpriseId}`
         })
@@ -161,72 +141,117 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.section-title {
+.page-checkout {
+  background: #f7f8fa;
+  min-height: 100vh;
+}
+.form-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 28rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.03);
+}
+.form-card__title {
+  display: block;
   font-size: 28rpx;
-  font-weight: 600;
-  color: #333;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 24rpx;
+}
+.form-row {
   margin-bottom: 20rpx;
 }
-.form-group { margin-bottom: 20rpx; }
-.form-label {
+.form-row--textarea { margin-bottom: 0; }
+.form-row__label {
   display: block;
-  font-size: 26rpx;
-  color: #666;
+  font-size: 24rpx;
+  color: #888;
   margin-bottom: 8rpx;
+  font-weight: 500;
 }
-.form-input {
+.required { color: #ff4d4f; }
+.form-row__input {
   width: 100%;
   height: 76rpx;
-  border: 1rpx solid #e5e5e5;
-  border-radius: 12rpx;
+  background: #f7f8fa;
+  border: 1rpx solid transparent;
+  border-radius: 14rpx;
   padding: 0 20rpx;
   font-size: 28rpx;
+  color: #1a1a1a;
   box-sizing: border-box;
+  transition: border-color 0.2s;
+  &:focus { border-color: #2979ff; background: #fff; }
 }
-.form-textarea {
+.form-row__textarea {
   width: 100%;
   height: 160rpx;
-  border: 1rpx solid #e5e5e5;
-  border-radius: 12rpx;
+  background: #f7f8fa;
+  border: 1rpx solid transparent;
+  border-radius: 14rpx;
   padding: 16rpx 20rpx;
   font-size: 28rpx;
+  color: #1a1a1a;
   box-sizing: border-box;
+  &:focus { border-color: #2979ff; background: #fff; }
 }
-.order-item {
+.order-line {
   display: flex;
   align-items: center;
   padding: 12rpx 0;
   border-bottom: 1rpx solid #f5f5f5;
   &:last-child { border-bottom: none; }
 }
-.item-name {
+.order-line__name {
   flex: 1;
   font-size: 26rpx;
   color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.item-qty {
+.order-line__qty {
+  font-size: 24rpx;
+  color: #aaa;
+  margin: 0 24rpx 0 12rpx;
+}
+.order-line__amount {
   font-size: 26rpx;
-  color: #999;
-  margin-right: 24rpx;
+  color: #1a1a1a;
+  font-weight: 600;
 }
-.item-amount {
-  font-size: 26rpx;
-  color: #333;
-  font-weight: 500;
-}
-.total-row {
+.order-total {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 16rpx;
+  padding-top: 20rpx;
+  margin-top: 8rpx;
+  border-top: 1rpx solid #f0f0f0;
 }
-.total-label {
+.order-total__label {
   font-size: 28rpx;
-  color: #333;
+  color: #1a1a1a;
+  font-weight: 600;
 }
-.total-price {
+.order-total__price {
   font-size: 36rpx;
   color: #ff4d4f;
   font-weight: 700;
 }
+.btn-submit {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #2979ff;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 44rpx;
+  text-align: center;
+  border: none;
+  margin-top: 24rpx;
+  letter-spacing: 2rpx;
+}
+.btn-submit--hover { opacity: 0.85; }
 </style>

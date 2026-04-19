@@ -50,7 +50,7 @@ public interface BuyerService {
     SalesOrderResponse createOrder(Long buyerUserId, BuyerOrderRequest request);
 
     /**
-     * 买家伪支付
+     * 兼容旧版买家 pay 接口：降级为付款声明（UNPAID -> CLAIMED）
      */
     void payOrder(Long buyerUserId, Long orderId);
 

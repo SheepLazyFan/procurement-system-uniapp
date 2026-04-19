@@ -16,6 +16,7 @@ public enum ResultCode {
     UNAUTHORIZED(40100, "未登录或 Token 已过期"),
     TOKEN_INVALID(40101, "Token 无效"),
     TOKEN_EXPIRED(40102, "Token 已过期"),
+    SESSION_INVALIDATED(40103, "登录态已失效，请重新登录"),
 
     // 权限 403xx
     FORBIDDEN(40300, "无权限访问"),

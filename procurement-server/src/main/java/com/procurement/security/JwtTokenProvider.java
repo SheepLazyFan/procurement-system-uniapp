@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
@@ -68,6 +70,28 @@ public class JwtTokenProvider {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+
+    /**
+     * 获取 Token 签发时间
+     */
+    public LocalDateTime getIssuedAt(String token) {
+        Date issuedAt = parseToken(token).getIssuedAt();
+        if (issuedAt == null) {
+            return null;
+        }
+        return LocalDateTime.ofInstant(issuedAt.toInstant(), ZoneId.systemDefault());
+    }
+
+    /**
+     * 判断 Token 是否早于给定失效时间签发
+     */
+    public boolean isIssuedBefore(String token, LocalDateTime invalidAfter) {
+        if (invalidAfter == null) {
+            return false;
+        }
+        LocalDateTime issuedAt = getIssuedAt(token);
+        return issuedAt != null && issuedAt.isBefore(invalidAfter);
     }
 
     /**
